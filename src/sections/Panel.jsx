@@ -8,7 +8,74 @@ import {
   trends,
   peso,
 } from '../data/circulo.js'
+import { leadsKpis } from '../data/live.js'
 import { TrendLine } from '../components/Charts.jsx'
+
+const TIER_COLOR = { A: 'var(--green)', B: 'var(--gold)', C: 'var(--blue)', D: 'var(--red)' }
+
+// Tira de KPIs en vivo desde NocoDB — se actualiza sola (polling).
+function LiveKpis({ live }) {
+  const cards = live?.leads || []
+  const ready = !!live?.leads && !live?.error
+  const k = leadsKpis(cards)
+  const rel = live?.lastUpdated
+    ? new Date(live.lastUpdated).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
+    : null
+
+  return (
+    <div className="card card--pad-lg live-kpis">
+      <div className="card__head">
+        <span className="card__tag">
+          <span className="dot-live" style={live?.error ? { background: 'var(--red)' } : undefined} /> En vivo · NocoDB
+        </span>
+        <span className="card__q">
+          {live?.error
+            ? 'Sin conexión a la base — revisa NOCODB_TOKEN en Vercel'
+            : ready
+              ? `${k.total} leads reales${rel ? ' · actualizado ' + rel : ''}`
+              : 'Conectando con la base de datos…'}
+        </span>
+      </div>
+
+      {ready && (
+        <div className="lk-grid">
+          <div className="lk-tile">
+            <div className="lk-num">{k.total}</div>
+            <div className="lk-lbl">leads totales</div>
+          </div>
+          <div className="lk-tile">
+            <div className="lk-num" style={{ color: 'var(--green)' }}>{k.calientes}</div>
+            <div className="lk-lbl">calientes · tier A</div>
+          </div>
+          <div className="lk-tile">
+            <div className="lk-num">{k.scorePromedio ?? '—'}</div>
+            <div className="lk-lbl">score promedio</div>
+          </div>
+          <div className="lk-tile lk-tile--tiers">
+            <div className="lk-lbl" style={{ marginBottom: 8 }}>por tier</div>
+            <div className="lk-tiers">
+              {['A', 'B', 'C', 'D'].map((t) => (
+                <span key={t} className="lk-tier">
+                  <b style={{ color: TIER_COLOR[t] }}>{k.byTier[t]}</b>
+                  <span>{t}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+          <div className="lk-tile lk-tile--wide">
+            <div className="lk-lbl" style={{ marginBottom: 8 }}>ciudades top</div>
+            <div className="lk-chips">
+              {k.topCiudades.length === 0 && <span className="muted" style={{ fontSize: 12 }}>—</span>}
+              {k.topCiudades.map(([c, n]) => (
+                <span key={c} className="lk-chip">{c} <b>{n}</b></span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Funnel({ stages }) {
   return (
@@ -38,7 +105,7 @@ function Funnel({ stages }) {
   )
 }
 
-export default function Panel({ period, setPeriod }) {
+export default function Panel({ period, setPeriod, live }) {
   const p = periods[period]
 
   return (
@@ -72,6 +139,9 @@ export default function Panel({ period, setPeriod }) {
       </div>
 
       <div className="stack">
+        {/* KPIs en vivo desde NocoDB */}
+        <LiveKpis live={live} />
+
         {/* PREGUNTA 1 — embudo */}
         <div className="card card--pad-lg">
           <div className="card__head">

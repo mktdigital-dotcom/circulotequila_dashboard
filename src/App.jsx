@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { brand, nav, kanbanCards, leadContext, agent } from './data/circulo.js'
+import { useLiveLeads } from './data/live.js'
 import Panel from './sections/Panel.jsx'
 import Leads from './sections/Leads.jsx'
 import Agente from './sections/Agente.jsx'
@@ -20,6 +21,18 @@ function loadBoard() {
     if (raw) return JSON.parse(raw)
   } catch {}
   return buildInitial()
+}
+
+// Fusiona los leads en vivo de NocoDB con el tablero actual: NocoDB es la fuente
+// de verdad (etapa, tier, datos), pero conservamos las notas que el usuario haya
+// escrito localmente, indexadas por id de lead.
+function mergeLive(liveCards, prevBoard) {
+  const prevById = new Map((prevBoard || []).map((c) => [c.id, c]))
+  return liveCards.map((c) => {
+    const prev = prevById.get(c.id)
+    if (!prev) return c
+    return { ...c, notes: prev.notes?.length ? prev.notes : c.notes }
+  })
 }
 
 function exportCSV(cards) {
@@ -48,6 +61,15 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [board, setBoard] = useState(loadBoard)
   const searchRef = useRef(null)
+
+  // Datos en vivo desde NocoDB (vía /api/nocodb). Polling = tiempo real.
+  const { leads: liveLeads, loading: liveLoading, error: liveError, lastUpdated } =
+    useLiveLeads({ pollMs: 45000 })
+
+  // Cuando llegan los leads reales, se vuelven la fuente del tablero.
+  useEffect(() => {
+    if (liveLeads && liveLeads.length) setBoard((prev) => mergeLive(liveLeads, prev))
+  }, [liveLeads])
 
   // persistencia del pipeline
   useEffect(() => {
@@ -96,8 +118,10 @@ export default function App() {
   )
   const tb = topbar[section]
 
+  const live = { leads: liveLeads, loading: liveLoading, error: liveError, lastUpdated }
+
   const sections = {
-    panel: <Panel period={period} setPeriod={setPeriod} />,
+    panel: <Panel period={period} setPeriod={setPeriod} live={live} />,
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     agente: <Agente />,
     seguimientos: <Seguimientos query={query} />,
@@ -131,9 +155,13 @@ export default function App() {
         </nav>
 
         <div className="sidebar__foot">
-          <span className="foot-live">
-            <span className="dot-live" />
-            datos en vivo · hace 4 min
+          <span className="foot-live" title={liveError || ''}>
+            <span className="dot-live" style={liveError ? { background: 'var(--red)' } : undefined} />
+            {liveError
+              ? 'NocoDB · sin conexión'
+              : liveLoading && !liveLeads
+                ? 'conectando a NocoDB…'
+                : `NocoDB · ${liveLeads?.length ?? 0} leads en vivo`}
           </span>
           <span className="foot-ref">
             {brand.ref} · {brand.geo}

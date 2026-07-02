@@ -1533,6 +1533,86 @@ a {
   font-weight: 600;
 }
 
+/* ── KPIs en vivo (Panel · NocoDB) ──────────────────────────────────────── */
+.live-kpis .card__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.lk-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr) 1.1fr 1.4fr;
+  gap: 14px;
+  margin-top: 18px;
+}
+.lk-tile {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.lk-num {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1;
+}
+.lk-lbl {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.lk-tiers {
+  display: flex;
+  gap: 14px;
+}
+.lk-tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.lk-tier b {
+  font-size: 20px;
+  font-weight: 700;
+}
+.lk-tier span {
+  font-size: 10px;
+  color: var(--muted-2);
+  font-family: var(--mono);
+}
+.lk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.lk-chip {
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+.lk-chip b {
+  color: var(--gold);
+  margin-left: 3px;
+}
+@media (max-width: 1040px) {
+  .lk-grid { grid-template-columns: repeat(3, 1fr); }
+  .lk-tile--tiers, .lk-tile--wide { grid-column: span 3; }
+}
+@media (max-width: 560px) {
+  .lk-grid { grid-template-columns: repeat(2, 1fr); }
+  .lk-tile--tiers, .lk-tile--wide { grid-column: span 2; }
+}
+
 /* ── Simulador WhatsApp ─────────────────────────────────────────────────── */
 .wa {
   display: flex;
