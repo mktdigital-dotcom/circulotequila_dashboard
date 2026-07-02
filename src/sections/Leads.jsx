@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react'
-import { stages, stageAccents, gateFields, arquitectura, pesoCompact } from '../data/circulo.js'
+import { stages, stageAccents, reactivationStage, pesoCompact } from '../data/circulo.js'
 
 const stageLabel = (n) => stages.find((s) => s.n === n)?.label || '—'
-const accentOf = (n) => stageAccents[n] || '#e9b65d'
-const objLabel = (cat) => arquitectura.objeciones.find((o) => o.cat === cat)
-const GATE_LABEL = { empresa: 'Empresa', volumen: 'Volumen', proposito: 'Propósito', ciudad: 'Ciudad', fechaObjetivo: 'Fecha objetivo' }
+const accentOf = (n) => (n === 'reactivacion' ? '#e2795c' : stageAccents[n] || '#e9b65d')
 
 const marketing = stages.filter((s) => s.n <= 4)
 const comercial = stages.filter((s) => s.n >= 5)
+// Columna extra para leads en etapa "perdido" (§ reactivación) — sin ella,
+// esos leads existían en la base pero no se veían en el tablero.
+const reactCol = { n: 'reactivacion', label: reactivationStage.label }
 
 const stamp = () =>
   new Date().toLocaleString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -79,7 +80,7 @@ function LeadDrawer({ card, onClose, onChange }) {
             <Sel v={card.stage} set={(v) => set({ stage: Number(v) })} opts={stages.map((s) => ({ v: s.n, l: `${s.n} · ${s.label}` }))} />
           ) : (
             <span className="chip chip--stage" style={{ color: accent, borderColor: accent + '55' }}>
-              Etapa {card.stage} · {stageLabel(card.stage)}
+              {card.stage === 'reactivacion' ? 'Reactivación' : `Etapa ${card.stage} · ${stageLabel(card.stage)}`}
             </span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
@@ -245,7 +246,7 @@ function Column({ stage, board, match, overStage, setOverStage, onDrop, onDragSt
       onDrop={() => onDrop(stage.n)}
     >
       <div className="kcol__head">
-        <span className="kcol__num" style={{ background: accent }}>{stage.n}</span>
+        <span className="kcol__num" style={{ background: accent }}>{stage.n === 'reactivacion' ? '↻' : stage.n}</span>
         <span className="kcol__label">{stage.label}</span>
         <span className="kcount">{board.filter((c) => c.stage === stage.n).length}</span>
       </div>
@@ -356,6 +357,10 @@ export default function Leads({ board, setBoard, query = '' }) {
               onDragEndCard={() => { dragId.current = null; setOverStage(null) }}
               onClickCard={onClickCard} />
           ))}
+          <Column key="reactivacion" stage={reactCol} board={board} match={match} overStage={overStage} setOverStage={setOverStage} onDrop={onDrop}
+            onDragStartCard={(id) => { dragId.current = id; draggedRef.current = true }}
+            onDragEndCard={() => { dragId.current = null; setOverStage(null) }}
+            onClickCard={onClickCard} />
         </div>
       </div>
 

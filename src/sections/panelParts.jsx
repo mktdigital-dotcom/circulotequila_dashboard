@@ -58,6 +58,7 @@ export function LiveKpis({ live }) {
         <div className="lk-grid">
           <div className="lk-tile"><div className="lk-num">{k.total}</div><div className="lk-lbl">leads totales</div></div>
           <div className="lk-tile"><div className="lk-num" style={{ color: 'var(--green)' }}>{k.calientes}</div><div className="lk-lbl">calientes · tier A</div></div>
+          <div className="lk-tile"><div className="lk-num" style={{ color: 'var(--red)' }}>{k.reactivacion}</div><div className="lk-lbl">en reactivación</div></div>
           <div className="lk-tile"><div className="lk-num">{k.scorePromedio ?? '—'}</div><div className="lk-lbl">score promedio</div></div>
           <div className="lk-tile lk-tile--tiers">
             <div className="lk-lbl" style={{ marginBottom: 8 }}>por tier</div>

@@ -1132,7 +1132,7 @@ a {
 .pzones,
 .kanban {
   display: grid;
-  grid-template-columns: repeat(4, 176px) 50px repeat(6, 176px);
+  grid-template-columns: repeat(4, 176px) 50px repeat(6, 176px) 186px;
   gap: 12px;
   min-width: max-content;
 }
@@ -1553,7 +1553,7 @@ a {
 }
 .lk-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr) 1.1fr 1.4fr;
+  grid-template-columns: repeat(4, 1fr) 1.1fr 1.4fr;
   gap: 14px;
   margin-top: 18px;
 }
@@ -1624,6 +1624,18 @@ a {
   .lk-grid { grid-template-columns: repeat(2, 1fr); }
   .lk-tile--tiers, .lk-tile--wide { grid-column: span 2; }
 }
+
+.sim-guide {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.sim-guide b { color: var(--ink); font-weight: 600; }
 
 .sim-pipeline-link {
   display: flex;

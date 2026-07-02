@@ -1,5 +1,28 @@
 # Mapa de datos · NocoDB → Dashboard
 
+## ⭐ Regla de oro del modelo de datos (definida por Libia)
+
+**La tabla `Leads` es LA base — reemplaza los Sheets de Kenia.** Una fila por lead,
+SIEMPRE creada y actualizada por el agente/sistema en cada conversación, con TODOS
+estos campos: `fecha, canal, linea, campaña, anuncio, nombre, contacto, ciudad,
+ciudad_validada, botellas, propósito, estatus_mkt, etapa, tier, score, tipo_lead,
+contexto`.
+
+- **`Mensajes`** = solo la bitácora (cada mensaje enviado/recibido, por lead_id).
+- **`contexto`** (columna de Leads) = el RESUMEN de lo que pasó en los mensajes —
+  es lo que viaja a ventas y se muestra en el Pipeline. Debe actualizarse por
+  automatización tras cada interacción, no a mano.
+
+### ⚠️ Brecha detectada en el flujo n8n "Círculo WEB" (para el equipo dev)
+Hoy el nodo **Crear Lead** solo escribe: `lead_id, fecha, canal, linea, nombre,
+contacto, ciudad, etapa, tipo_lead` — y **Actualizar Lead** solo `score, tier`.
+**Faltan por escribir:** `campaña, anuncio, botellas, propósito, estatus_mkt,
+contexto, ciudad_validada, requalify_at`. La detección ya calcula campaña/anuncio/
+ciudad_validada (nodo Detección de Canal) y el score ya extrae botellas — solo hay
+que mapearlos al Actualizar Lead, y agregar un paso que genere el `contexto`
+(resumen breve) tras cada respuesta del agente.
+
+
 Estrategia de mapeo de la base **Proceso Comercial - Círculo Tequila** (`pw5fbulfxbvr6ko`)
 hacia el dashboard, alineada a la **Arquitectura comercial validada con Kenia** (v.2026.06b)
 y a las 5 secciones solicitadas. Fuente de verdad: NocoDB (lo escribe el agente + el sistema).

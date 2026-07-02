@@ -8,21 +8,53 @@ const now = () =>
 // En dev pasamos por el proxy de Vite (evita CORS); en prod, URL directa.
 const ENDPOINT = import.meta.env.DEV ? WEBHOOK_PATH_DEV : WEBHOOK_URL
 
-// Llama al webhook real del flujo n8n "Círculo WEB" y normaliza la respuesta.
+// Llama al webhook real del flujo n8n "Círculo WEB" con el MISMO formato de
+// payload que envía ManyChat en producción — así la prueba es fiel al canal real.
 async function callWebhook({ phone, text, name }) {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 45000)
+  const digits = phone.replace(/\D/g, '')
+  const parts = (name || 'Prueba WhatsApp').trim().split(/\s+/)
   try {
     const res = await fetch(ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       signal: ctrl.signal,
       body: JSON.stringify({
-        whatsapp_phone: phone,
+        key: 'user:sim' + digits.slice(-10),
+        id: 'sim' + digits.slice(-10),
+        page_id: '',
+        user_refs: [],
+        status: 'active',
+        first_name: parts[0],
+        last_name: parts.slice(1).join(' ') || null,
+        name: name || 'Prueba WhatsApp',
+        gender: null,
+        profile_pic: null,
+        locale: null,
+        language: null,
+        timezone: 'UTC±00',
+        live_chat_url: '',
         last_input_text: text,
-        name,
-        first_name: name,
-        timezone: 'America/Mexico_City',
+        optin_phone: false,
+        phone: null,
+        optin_email: false,
+        email: null,
+        subscribed: new Date().toISOString(),
+        last_interaction: null,
+        ig_last_interaction: null,
+        last_seen: null,
+        ig_last_seen: null,
+        is_followup_enabled: true,
+        ig_username: null,
+        ig_id: null,
+        whatsapp_phone: phone,
+        whatsapp_bsuid: null,
+        whatsapp_username: null,
+        optin_whatsapp: true,
+        phone_country_code: null,
+        last_growth_tool: null,
+        custom_fields: {},
       }),
     })
     if (!res.ok) throw new Error('HTTP ' + res.status)
@@ -41,7 +73,7 @@ async function callWebhook({ phone, text, name }) {
 
 // Construye un lead a partir de la conversación de prueba, con el mismo formato
 // que usa el Pipeline — para que el simulador se registre como un lead real.
-function buildSimLead(phone, messages, det, sc) {
+function buildSimLead(phone, messages, det, sc, testName) {
   const stage = sc?.gate
     ? 'reactivacion'
     : sc?.tier === 'A'
@@ -58,8 +90,8 @@ function buildSimLead(phone, messages, det, sc) {
     id: 'SIM-' + phone.replace(/\D/g, '').slice(-4),
     esPrueba: true,
     stage,
-    name: 'Prueba' + (campana ? ' · ' + campana : '') + (ciudad && ciudad !== '—' ? ' · ' + ciudad : ''),
-    empresa: '',
+    name: (testName || 'Prueba') + ' 🧪',
+    empresa: campana ? 'prueba · ' + campana : 'prueba del simulador',
     ciudad,
     bot: bottles != null ? bottles + ' bot' : '— bot',
     volumen: bottles ?? undefined,
@@ -88,6 +120,7 @@ function buildSimLead(phone, messages, det, sc) {
 
 export default function Agente({ onLead, goToPipeline }) {
   const [phone, setPhone] = useState(simConfig.testPhones[0].phone)
+  const [testName, setTestName] = useState('Kenia Prueba')
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState(false)
@@ -157,12 +190,12 @@ export default function Agente({ onLead, goToPipeline }) {
     )
 
     // El lead de prueba entra al Pipeline de inmediato y se va enriqueciendo.
-    onLead?.(buildSimLead(phone, nextMessages, merged, sc))
+    onLead?.(buildSimLead(phone, nextMessages, merged, sc, testName))
 
     // ── Llamada al webhook real ──────────────────────────────────────────────
     setTyping(true)
     try {
-      const { partes } = await callWebhook({ phone, text, name: 'Prueba WhatsApp' })
+      const { partes } = await callWebhook({ phone, text, name: testName })
       setMessages((m) => m.map((x) => (x.who === 'user' ? { ...x, status: 'read' } : x)))
       const convo = [...nextMessages]
       // Cada "parte" es una burbuja separada, escalonada como en WhatsApp real.
@@ -174,7 +207,7 @@ export default function Agente({ onLead, goToPipeline }) {
         setMessages((m) => [...m, agentMsg])
       }
       // Actualiza el lead con la respuesta del agente en su línea de tiempo.
-      onLead?.(buildSimLead(phone, convo, merged, sc))
+      onLead?.(buildSimLead(phone, convo, merged, sc, testName))
     } catch (e) {
       const msg =
         e.name === 'AbortError'
@@ -291,6 +324,32 @@ export default function Agente({ onLead, goToPipeline }) {
             <div className="rail__hint">
               Solo estos números reciben respuesta (gate del flujo). Cada uno es una sesión de
               memoria independiente.
+            </div>
+            <div className="rail__title" style={{ marginTop: 16 }}>nombre_de_prueba</div>
+            <input
+              className="d-input"
+              value={testName}
+              onChange={(e) => setTestName(e.target.value)}
+              placeholder="Nombre del cliente de prueba"
+            />
+            <div className="rail__hint">
+              Va en el payload como en ManyChat (first_name / name) y será el nombre del lead en el
+              Pipeline.
+            </div>
+          </div>
+
+          <div className="card rail__card">
+            <div className="rail__title">guía_de_prueba · para Kenia</div>
+            <ol className="sim-guide">
+              <li>Elige un <b>teléfono de prueba</b> (cada uno es una conversación aparte).</li>
+              <li>Pon tu <b>nombre de prueba</b>.</li>
+              <li>Toca un <b>inicio de campaña</b> — son las frases reales de los anuncios; el sistema detecta de qué campaña y ciudad viene.</li>
+              <li>Conversa como cliente (pide precios, di cuántas botellas, pide llamada…).</li>
+              <li>Mira <b>detrás_del_telón</b>: canal, campaña, ciudad, tier y score en vivo.</li>
+              <li>Abre el <b>Pipeline</b>: tu prueba quedó guardada como lead 🧪 con toda su data y su conversación.</li>
+            </ol>
+            <div className="rail__hint">
+              El simulador envía al flujo el mismo formato de datos que ManyChat manda en producción.
             </div>
           </div>
 
