@@ -7,11 +7,10 @@ const stageLabel = (s) =>
 const peso = (n) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 }).format(n || 0)
 
-export default function Seguimientos({ query = '', board = [] }) {
+// Cola de seguimiento reutilizable — se usa dentro de "Conversión comercial".
+export function FollowupList({ board = [], query = '' }) {
   const [copied, setCopied] = useState(null)
 
-  // Cola de seguimiento: reactivación (etapa "perdido") o sin movimiento ≥ 3 días,
-  // lo más frío primero. Se alimenta de los leads reales de NocoDB.
   const baseQueue = board
     .filter((l) => l.stage === 'reactivacion' || (typeof l.dias === 'number' && l.dias >= 3))
     .sort((a, b) => (b.dias || 0) - (a.dias || 0))
@@ -27,7 +26,7 @@ export default function Seguimientos({ query = '', board = [] }) {
     const first = (l.name || 'Hola').split(' ')[0]
     const msg = `Hola ${first} 👋, retomando tu interés en las Ediciones Empresariales de Círculo${
       l.empresa && l.empresa !== l.name ? ' para ' + l.empresa : ''
-    }. ${l.proximo}`
+    }. ${l.proximo || ''}`
     navigator.clipboard?.writeText(msg)
     setCopied(l.id)
     setTimeout(() => setCopied((c) => (c === l.id ? null : c)), 1800)
@@ -36,29 +35,14 @@ export default function Seguimientos({ query = '', board = [] }) {
   const valorEnRiesgo = queue.reduce((s, l) => s + (l.valor || 0), 0)
 
   return (
-    <section>
-      <div className="section-head">
-        <div>
-          <div className="eyebrow">Seguimientos</div>
-          <h1 className="headline">
-            Nada se <span className="gold">enfría.</span>
-          </h1>
-          <p className="subhead">
-            La cola que evita que una conversación con interés real se enfríe — reactivaciones y leads
-            sin movimiento, del más frío al más reciente, con el estatus real y el próximo toque listo.
-          </p>
-        </div>
-      </div>
-
-      <div className="callout" style={{ marginBottom: 24 }}>
-        <b>{queue.length} prospectos</b> esperan un toque · valor estimado en riesgo{' '}
-        <b>{peso(valorEnRiesgo)}</b>
+    <>
+      <div className="callout" style={{ marginBottom: 20 }}>
+        <b>{queue.length} prospectos</b> esperan un toque · valor estimado en riesgo <b>{peso(valorEnRiesgo)}</b>
       </div>
 
       {queue.length === 0 && (
-        <div className="card" style={{ padding: 28, textAlign: 'center', color: 'var(--muted)' }}>
-          Sin leads pendientes de seguimiento por ahora. Se llenará en cuanto haya prospectos sin
-          movimiento o en reactivación.
+        <div className="card" style={{ padding: 26, textAlign: 'center', color: 'var(--muted)' }}>
+          Sin leads pendientes de seguimiento por ahora.
         </div>
       )}
 
@@ -111,6 +95,6 @@ export default function Seguimientos({ query = '', board = [] }) {
           </div>
         ))}
       </div>
-    </section>
+    </>
   )
 }

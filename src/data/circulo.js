@@ -246,12 +246,16 @@ export const mondayQuestions = [
 ]
 
 // ── Navegación ────────────────────────────────────────────────────────────
+// Secciones que pide el negocio (brief §11), en su orden, + Agente IA y la
+// referencia de Arquitectura. `live` marca las que se alimentan de NocoDB.
 export const nav = [
-  { n: '01', key: 'panel', label: 'Panel' },
-  { n: '02', key: 'leads', label: 'Leads' },
-  { n: '03', key: 'agente', label: 'Agente IA' },
-  { n: '04', key: 'seguimientos', label: 'Seguimientos' },
-  { n: '05', key: 'arquitectura', label: 'Arquitectura' },
+  { n: '01', key: 'embudo', label: 'Resumen del embudo', live: true },
+  { n: '02', key: 'leads', label: 'Seguimiento y estado', live: true },
+  { n: '03', key: 'canales', label: 'Rendimiento por canal', live: true },
+  { n: '04', key: 'conversion', label: 'Conversión comercial', live: true },
+  { n: '05', key: 'tendencias', label: 'Tendencias y análisis', live: true },
+  { n: '06', key: 'agente', label: 'Agente IA', live: true },
+  { n: '07', key: 'arquitectura', label: 'Arquitectura' },
 ]
 
 export const peso = (n) =>

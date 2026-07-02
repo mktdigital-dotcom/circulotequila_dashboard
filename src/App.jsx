@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { brand, nav, kanbanCards, leadContext, agent } from './data/circulo.js'
 import { useLiveLeads } from './data/live.js'
-import Panel from './sections/Panel.jsx'
+import Embudo from './sections/Embudo.jsx'
 import Leads from './sections/Leads.jsx'
+import Canales from './sections/Canales.jsx'
+import Conversion from './sections/Conversion.jsx'
+import Tendencias from './sections/Tendencias.jsx'
 import Agente from './sections/Agente.jsx'
-import Seguimientos from './sections/Seguimientos.jsx'
 import Arquitectura from './sections/Arquitectura.jsx'
 
 const STORAGE_KEY = 'circulo.board.v3'
@@ -56,7 +58,7 @@ function exportCSV(cards) {
 }
 
 export default function App() {
-  const [section, setSection] = useState('panel')
+  const [section, setSection] = useState('embudo')
   const [period, setPeriod] = useState('mes')
   const [query, setQuery] = useState('')
   const [board, setBoard] = useState(loadBoard)
@@ -106,25 +108,30 @@ export default function App() {
     setSection('leads')
   }
 
+  const livePill = liveError ? 'NocoDB · sin conexión' : liveLoading && !liveLeads ? 'conectando…' : 'datos en vivo · NocoDB'
   const topbar = useMemo(
     () => ({
-      panel: { ph: 'Preguntar al sistema de Círculo…', pill: 'datos en vivo', btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
-      leads: { ph: 'Buscar lead, región u ocasión…', pill: 'sync: wa.api', btn: '+ Nuevo lead', arrow: false, action: addLead },
-      agente: { ph: 'Probar un mensaje contra el SOP…', pill: 'modelo: en_vivo', btn: 'Cargar SOP', arrow: true, action: () => window.open(agent.materials, '_blank', 'noopener') },
-      seguimientos: { ph: 'Buscar prospecto en seguimiento…', pill: 'datos en vivo', btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
+      embudo: { ph: 'Buscar en el resumen…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
+      leads: { ph: 'Buscar lead, región u ocasión…', pill: livePill, btn: '+ Nuevo lead', arrow: false, action: addLead },
+      canales: { ph: 'Buscar canal o campaña…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
+      conversion: { ph: 'Buscar prospecto en seguimiento…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
+      tendencias: { ph: 'Buscar en tendencias…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
+      agente: { ph: 'Probar un mensaje contra el SOP…', pill: 'agente · en línea', btn: 'Cargar SOP', arrow: true, action: () => window.open(agent.materials, '_blank', 'noopener') },
       arquitectura: { ph: 'Buscar en la arquitectura…', pill: 'azxion · v.2026.06', btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
     }),
-    [board],
+    [board, livePill],
   )
-  const tb = topbar[section]
+  const tb = topbar[section] || topbar.embudo
 
   const live = { leads: liveLeads, loading: liveLoading, error: liveError, lastUpdated }
 
   const sections = {
-    panel: <Panel period={period} setPeriod={setPeriod} live={live} />,
+    embudo: <Embudo live={live} period={period} />,
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
+    canales: <Canales live={live} />,
+    conversion: <Conversion live={live} board={board} query={query} />,
+    tendencias: <Tendencias live={live} />,
     agente: <Agente />,
-    seguimientos: <Seguimientos query={query} board={board} />,
     arquitectura: <Arquitectura />,
   }
 
@@ -149,7 +156,14 @@ export default function App() {
               onClick={() => setSection(item.key)}
             >
               <span className="nav__num">{item.n}</span>
-              <span>{item.label}</span>
+              <span className="nav__label">{item.label}</span>
+              {item.live && (
+                <span
+                  className="nav__live"
+                  title={liveError ? 'Sin conexión a NocoDB' : liveLeads ? 'Conectado a NocoDB' : 'Conectando…'}
+                  style={{ background: liveError ? 'var(--red)' : liveLeads ? 'var(--green)' : 'var(--gold-dim)' }}
+                />
+              )}
             </button>
           ))}
         </nav>

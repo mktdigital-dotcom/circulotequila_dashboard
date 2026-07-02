@@ -281,11 +281,21 @@ const ENDPOINT = '/api/nocodb'
 
 async function getResource(resource) {
   const res = await fetch(`${ENDPOINT}?resource=${resource}`, { headers: { accept: 'application/json' } })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
+  const text = await res.text()
+  let data
+  try {
+    data = JSON.parse(text)
+  } catch {
+    // Respuesta no-JSON: normalmente el endpoint /api/nocodb no está desplegado
+    // (deploy sin la serverless function). Mensaje claro para diagnóstico.
+    throw new Error(
+      res.ok
+        ? 'La API /api/nocodb no está disponible en este deploy (¿falta desplegar la función serverless?).'
+        : `HTTP ${res.status} en /api/nocodb`,
+    )
   }
-  return res.json()
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
 }
 
 // Hook principal: leads + señales unidos, con polling (tiempo real).
