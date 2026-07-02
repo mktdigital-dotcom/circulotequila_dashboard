@@ -63,16 +63,18 @@ Se traduce cada estatus de Kenia a una acción sugerida (ver `ESTATUS_NEXT` en `
 ## Las 5 secciones (alineadas a “[11] Dashboard” y las 3 preguntas del lunes)
 
 1. **Resumen del embudo** — leads generados / en conversación / calificados / enviados a ventas /
-   reactivación. Fuente: `etapa` + `tier` + `score`. → Panel (tira "En vivo" + embudo).
-   Estado: **KPIs en vivo ✅** · embudo por etapa real (en progreso).
+   reactivación. Fuente: `etapa` + `tier` + `score`. → Panel (tira "En vivo" + embudo real). **✅**
 2. **Seguimiento y estado** — responsable, última interacción, días sin movimiento, próximo toque.
-   Fuente: `estatus_mkt` + Signal_log. → Sección Seguimientos. Estado: **✅ conectado**.
+   Fuente: `estatus_mkt` + Signal_log. → Sección Seguimientos. **✅**
 3. **Rendimiento por canal** — Meta/web/referidos/eventos: cantidad, calidad (tier), conversión.
-   Fuente: `canal` + `campaña` + `tier`. → Panel · "Qué canales generan clientes". Estado: **pendiente**.
+   Fuente: `canal` + `campaña` + `tier`. → Panel · "Qué canales generan clientes". **✅**
 4. **Conversión comercial** — transferidos (etapa ≥5), estatus, motivos de pérdida, tiempos.
-   Fuente: `etapa` + `estatus_mkt` + `requalify_at`. → Panel · handoff. Estado: **pendiente**.
-5. **Tendencias y análisis** — semanal/mensual, cuellos de botella por etapa.
-   Fuente: `fecha` + `etapa` en el tiempo. → Panel · tendencias. Estado: **pendiente**.
+   Fuente: `etapa` + `estatus_mkt` + `requalify_at`. → Panel · handoff. **✅**
+5. **Tendencias y análisis** — leads por semana según `fecha`; cuellos de botella por etapa.
+   Fuente: `fecha` + `etapa`. → Panel · tendencias. **✅ (base; se enriquece con más historial)**
+
+> Pendiente de afinar cuando haya más datos: deltas de tendencias (comparativos), `catalogo`
+> (precios por línea desde la base) y detalle de `contexto` en el drawer de Leads.
 
 ## Reglas de la arquitectura reflejadas
 - Solo filas con `lead_id = L-####` cuentan como lead (se filtran vacías y notas).

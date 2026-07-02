@@ -8,7 +8,7 @@ import {
   trends,
   peso,
 } from '../data/circulo.js'
-import { leadsKpis } from '../data/live.js'
+import { leadsKpis, panelModel } from '../data/live.js'
 import { TrendLine } from '../components/Charts.jsx'
 
 const TIER_COLOR = { A: 'var(--green)', B: 'var(--gold)', C: 'var(--blue)', D: 'var(--red)' }
@@ -77,12 +77,12 @@ function LiveKpis({ live }) {
   )
 }
 
-function Funnel({ stages }) {
+function Funnel({ stages, showLeak = true }) {
   return (
     <div className="funnel">
       {stages.map((s, i) => {
         const conv = i > 0 ? Math.round((s.value / stages[i - 1].value) * 100) : null
-        const prevLeak = i - 1 === leakIndex
+        const prevLeak = showLeak && i - 1 === leakIndex
         return (
           <div className="fstage" key={s.key}>
             {i > 0 && (
@@ -107,6 +107,16 @@ function Funnel({ stages }) {
 
 export default function Panel({ period, setPeriod, live }) {
   const p = periods[period]
+
+  // Datos reales de NocoDB cuando están disponibles; si no, cifras de referencia.
+  const pm = live?.leads && !live?.error && live.leads.length ? panelModel(live.leads) : null
+  const funnelStages = pm ? pm.funnel : p.stages
+  const chans = pm ? pm.channels : channels
+  const ho = pm ? pm.handoff : handoff
+  const losses = pm ? pm.handoff.lossReasons : lossReasons
+  const trendData = pm && pm.trend.data.length ? pm.trend.data : trends.series.leads.data
+  const trendLabels = pm && pm.trend.weekLabels.length ? pm.trend.weekLabels : trends.weekLabels
+  const liveTag = pm ? ' · datos reales' : ''
 
   return (
     <section>
@@ -145,10 +155,10 @@ export default function Panel({ period, setPeriod, live }) {
         {/* PREGUNTA 1 — embudo */}
         <div className="card card--pad-lg">
           <div className="card__head">
-            <span className="card__tag">Pregunta 1</span>
+            <span className="card__tag">Pregunta 1{liveTag}</span>
             <span className="card__q">Cuántos generamos, cuántos calificaron, cuántos llegaron a ventas</span>
           </div>
-          <Funnel stages={p.stages} />
+          <Funnel stages={funnelStages} showLeak={!pm} />
         </div>
 
         {/* PREGUNTA 3 · 2 · tendencias */}
@@ -160,7 +170,7 @@ export default function Panel({ period, setPeriod, live }) {
               <span className="card__q">Qué canales generan clientes</span>
             </div>
             <div className="bars">
-              {channels.map((c) => (
+              {chans.map((c) => (
                 <div key={c.name}>
                   <div className="bar__top">
                     <div>
@@ -192,7 +202,7 @@ export default function Panel({ period, setPeriod, live }) {
               <span className="card__q">Qué pasó tras el handoff</span>
             </div>
             <div className="handoff__big">
-              <span className="handoff__num">{handoff.total}</span>
+              <span className="handoff__num">{ho.total}</span>
               <span className="handoff__cap">
                 oportunidades
                 <br />
@@ -200,16 +210,16 @@ export default function Panel({ period, setPeriod, live }) {
               </span>
             </div>
             <div className="stackbar">
-              {handoff.segments.map((s) => (
+              {ho.segments.map((s) => (
                 <span
                   key={s.label}
                   className={'bg-' + s.tone}
-                  style={{ width: (s.value / handoff.total) * 100 + '%' }}
+                  style={{ width: (s.value / (ho.total || 1)) * 100 + '%' }}
                 />
               ))}
             </div>
             <div className="legend">
-              {handoff.segments.map((s) => (
+              {ho.segments.map((s) => (
                 <div className="legend__row" key={s.label}>
                   <span className="l">
                     <span className={'dot-mini bg-' + s.tone} />
@@ -220,13 +230,16 @@ export default function Panel({ period, setPeriod, live }) {
               ))}
             </div>
             <div className="loss">
-              <div className="loss__title">Motivos de pérdida · 90 días</div>
-              {lossReasons.slice(0, 3).map((r) => (
+              <div className="loss__title">Motivos de pérdida{pm ? '' : ' · 90 días'}</div>
+              {(losses.length ? losses : lossReasons).slice(0, 3).map((r) => (
                 <div className="loss__row" key={r.reason}>
                   <span>{r.reason}</span>
                   <span>{r.value}</span>
                 </div>
               ))}
+              {pm && losses.length === 0 && (
+                <div className="loss__row"><span className="muted">Sin pérdidas registradas</span><span>0</span></div>
+              )}
             </div>
           </div>
 
@@ -235,9 +248,9 @@ export default function Panel({ period, setPeriod, live }) {
             <div className="card__head">
               <span className="card__title">§ tendencias · 6 semanas</span>
             </div>
-            <TrendLine data={trends.series.leads.data} color="#e6b35a" />
+            <TrendLine data={trendData} color="#e6b35a" />
             <div className="trend-x">
-              {trends.weekLabels.map((w) => (
+              {trendLabels.map((w) => (
                 <span key={w}>{w}</span>
               ))}
             </div>

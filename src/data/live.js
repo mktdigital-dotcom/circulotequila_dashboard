@@ -194,6 +194,89 @@ export function leadsKpis(cards) {
   }
 }
 
+// Motivos de pérdida (§05.3 / §13) derivados del estatus de leads perdidos.
+const LOSS_REASON = {
+  'sin respuesta despues de enviar costos': 'Sin respuesta tras costos',
+  'no esta interesado': 'No interesado',
+  'se enviaron costos': 'Precio / presupuesto',
+}
+const CANAL_TONE = { whatsapp: 'golddim', web: 'gold', 'sitio web': 'gold', referido: 'green', referidos: 'green', evento: 'teal', eventos: 'teal', mailing: 'orange' }
+const CANAL_LABEL = { whatsapp: 'Meta Ads · WhatsApp', web: 'Sitio web', 'sitio web': 'Sitio web' }
+const TIER_VAL = { A: 4, B: 3, C: 2, D: 1 }
+
+// Modelo completo del Panel a partir de los leads reales (Secciones 1, 3, 4, 5).
+export function panelModel(cards) {
+  const numStage = (c) => (typeof c.stage === 'number' ? c.stage : 0)
+  const total = cards.length
+
+  // ── Sección 1 · Embudo (acumulado, conteo real) ──
+  const conv = cards.filter((c) => numStage(c) >= 2).length
+  const cal = cards.filter((c) => numStage(c) >= 3).length
+  const sales = cards.filter((c) => numStage(c) >= 5).length
+  const won = cards.filter((c) => numStage(c) === 10).length
+  const funnel = [
+    { key: 'gen', label: 'Generados', value: total, dot: 'blue', sub: 'leads reales', note: '' },
+    { key: 'conv', label: 'En conversación', value: conv, dot: 'teal', sub: 'respondió al 1er toque', note: '' },
+    { key: 'cal', label: 'Calificados', value: cal, dot: 'gold', sub: 'señales §05', note: '' },
+    { key: 'sales', label: 'Enviados a ventas', value: sales, dot: 'pink', sub: 'transferidos a comercial', note: '' },
+    { key: 'won', label: 'Cerradas', value: won, dot: 'green', sub: 'producción y entrega', note: '' },
+  ]
+
+  // ── Sección 3 · Rendimiento por canal ──
+  const canalMap = {}
+  for (const c of cards) {
+    const key = (c.canal || 'otro').toString().toLowerCase()
+    ;(canalMap[key] ||= { leads: 0, tierSum: 0, tierN: 0 })
+    canalMap[key].leads++
+    if (c.tier && TIER_VAL[c.tier]) {
+      canalMap[key].tierSum += TIER_VAL[c.tier]
+      canalMap[key].tierN++
+    }
+  }
+  const channels = Object.entries(canalMap)
+    .map(([key, v]) => {
+      const avg = v.tierN ? v.tierSum / v.tierN : 0
+      const quality = avg >= 3.5 ? 'alta' : avg >= 2.5 ? 'media' : 'baja'
+      const pct = Math.round((v.leads / (total || 1)) * 100)
+      return { name: CANAL_LABEL[key] || key, leads: v.leads, quality, pct, tone: CANAL_TONE[key] || 'blue' }
+    })
+    .sort((a, b) => b.leads - a.leads)
+
+  // ── Sección 4 · Conversión comercial (handoff) ──
+  const ganadas = won
+  const enProceso = cards.filter((c) => numStage(c) >= 5 && numStage(c) < 10).length
+  const perdidas = cards.filter((c) => c.stage === 'reactivacion').length
+  const handoffTotal = ganadas + enProceso + perdidas
+  const segments = [
+    { label: 'Ganadas', value: ganadas, tone: 'green' },
+    { label: 'Abiertas / en proceso', value: enProceso, tone: 'gold' },
+    { label: 'Perdidas / reactivación', value: perdidas, tone: 'red' },
+  ]
+  const lossMap = {}
+  for (const c of cards.filter((c) => c.stage === 'reactivacion')) {
+    const r = LOSS_REASON[norm(c.estatusMkt)] || 'Sin seguimiento'
+    lossMap[r] = (lossMap[r] || 0) + 1
+  }
+  const lossReasons = Object.entries(lossMap).map(([reason, value]) => ({ reason, value })).sort((a, b) => b.value - a.value)
+
+  // ── Sección 5 · Tendencias (leads por semana según fecha) ──
+  const weekMap = {}
+  for (const c of cards) {
+    if (!c.fecha) continue
+    const d = new Date(c.fecha.replace(' ', 'T'))
+    if (isNaN(d)) continue
+    // etiqueta ISO por año-semana aproximada
+    const onejan = new Date(d.getFullYear(), 0, 1)
+    const wk = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)
+    const key = `s${wk}`
+    weekMap[key] = (weekMap[key] || 0) + 1
+  }
+  const weekLabels = Object.keys(weekMap).sort()
+  const trend = { weekLabels, data: weekLabels.map((k) => weekMap[k]) }
+
+  return { funnel, channels, handoff: { total: handoffTotal, segments, lossReasons }, trend }
+}
+
 const ENDPOINT = '/api/nocodb'
 
 async function getResource(resource) {
