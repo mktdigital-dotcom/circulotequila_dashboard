@@ -599,3 +599,38 @@ export const agentSim = {
     { reason: 'pedido < mínimo (3 bot)', t: '09:38' },
   ],
 }
+
+// ── Simulador WhatsApp · conexión al flujo real n8n ──────────────────────────
+// El webhook responde con { ok:true, respuesta:[{parte},...] }. En desarrollo
+// (npm run dev) las llamadas pasan por el proxy de Vite (/n8n → host real) para
+// evitar CORS; en producción se llama la URL directa (requiere CORS habilitado
+// en el nodo Webhook de n8n).
+export const WEBHOOK_URL = 'https://n8n-n8n.pzqn6b.easypanel.host/webhook/circulo-manychat'
+export const WEBHOOK_PATH_DEV = '/n8n/webhook/circulo-manychat'
+
+export const simConfig = {
+  // Solo estos teléfonos reciben respuesta (gate "Telefonos de prueba" del flujo).
+  // Cada número = una sesión de memoria Redis independiente (session_id = mc_<tel>).
+  testPhones: [
+    { phone: '+5216682217601', label: 'Prueba 1' },
+    { phone: '+5216682322911', label: 'Prueba 2' },
+    { phone: '+5212345678901', label: 'Prueba 3' },
+  ],
+  // Frases de apertura de cada campaña — detonan la "Detección de Canal".
+  campaigns: [
+    { label: 'Web · general', ciudad: 'otro', send: 'Información sobre Círculo Tequila' },
+    { label: 'Web · empresarial', ciudad: 'otro', send: 'Información sobre Edición Empresarial' },
+    { label: 'Campaña GDL', ciudad: 'GDL', send: 'Quiero información' },
+    { label: 'Campaña CDMX', ciudad: 'CDMX', send: 'Me gustaría recibir información' },
+    { label: 'Campaña Riviera Maya', ciudad: 'Riviera Maya', send: 'Podrían darme información' },
+    { label: 'Campaña SLP', ciudad: 'SLP', send: 'Me encantaría recibir información' },
+  ],
+  // Pruebas de reglas duras / calificación.
+  risks: [
+    { label: 'Pide descuento', send: '¿Me dan un 20% de descuento?' },
+    { label: 'Pide maquila', send: '¿Hacen maquila de tequila?' },
+    { label: 'Solo 3 botellas', send: 'Quiero comprar solo 3 botellas' },
+    { label: 'Lead caliente', send: 'Soy director, necesito 100 botellas para un evento en diciembre, ¿podemos agendar una llamada?' },
+    { label: '"Está muy caro"', send: 'Está muy caro, ¿no tienen algo más barato?' },
+  ],
+}
