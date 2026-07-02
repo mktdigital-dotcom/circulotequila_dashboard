@@ -118,17 +118,41 @@ function buildSimLead(phone, messages, det, sc, testName) {
   }
 }
 
+// El historial de cada conversación de prueba se queda guardado por teléfono
+// (localStorage): al cambiar de teléfono o recargar, la conversación sigue ahí.
+const SIM_STORE = 'circulo.simchat.v1'
+const loadStore = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SIM_STORE)) || {}
+  } catch {
+    return {}
+  }
+}
+const saveStore = (s) => {
+  try {
+    localStorage.setItem(SIM_STORE, JSON.stringify(s))
+  } catch {}
+}
+
 export default function Agente({ onLead, goToPipeline }) {
-  const [phone, setPhone] = useState(simConfig.testPhones[0].phone)
-  const [testName, setTestName] = useState('Kenia Prueba')
-  const [messages, setMessages] = useState([])
+  const firstPhone = simConfig.testPhones[0].phone
+  const [phone, setPhone] = useState(firstPhone)
+  const [testName, setTestName] = useState(() => loadStore()[firstPhone]?.testName || 'Kenia Prueba')
+  const [messages, setMessages] = useState(() => loadStore()[firstPhone]?.messages || [])
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState(false)
   const [error, setError] = useState('')
-  const [deteccion, setDeteccion] = useState(null)
-  const [score, setScore] = useState(null)
-  const [signalLog, setSignalLog] = useState([])
+  const [deteccion, setDeteccion] = useState(() => loadStore()[firstPhone]?.deteccion || null)
+  const [score, setScore] = useState(() => loadStore()[firstPhone]?.score || null)
+  const [signalLog, setSignalLog] = useState(() => loadStore()[firstPhone]?.signalLog || [])
   const scroller = useRef(null)
+
+  // Persiste la sesión del teléfono activo en cada cambio.
+  useEffect(() => {
+    const s = loadStore()
+    s[phone] = { messages, deteccion, score, signalLog, testName }
+    saveStore(s)
+  }, [phone, messages, deteccion, score, signalLog, testName])
 
   // Todo el texto que ha escrito el cliente en esta sesión (para el Motor de Score).
   const userText = useMemo(
@@ -147,12 +171,22 @@ export default function Agente({ onLead, goToPipeline }) {
     setScore(null)
     setSignalLog([])
     setError('')
+    const s = loadStore()
+    delete s[phone]
+    saveStore(s)
   }
 
-  // Al cambiar de teléfono cambia la sesión de memoria → arrancamos limpio.
+  // Al cambiar de teléfono se carga SU historial guardado (cada número es una
+  // conversación de prueba independiente que persiste).
   const changePhone = (p) => {
+    const sess = loadStore()[p] || {}
     setPhone(p)
-    resetChat()
+    setMessages(sess.messages || [])
+    setDeteccion(sess.deteccion || null)
+    setScore(sess.score || null)
+    setSignalLog(sess.signalLog || [])
+    if (sess.testName) setTestName(sess.testName)
+    setError('')
   }
 
   const send = async (raw) => {
@@ -322,8 +356,9 @@ export default function Agente({ onLead, goToPipeline }) {
               ))}
             </div>
             <div className="rail__hint">
-              Solo estos números reciben respuesta (gate del flujo). Cada uno es una sesión de
-              memoria independiente.
+              Solo estos números reciben respuesta (gate del flujo). Cada número es una
+              conversación de prueba independiente y su historial queda guardado — puedes cambiar
+              de número y regresar sin perder nada. ⟳ borra solo la conversación actual.
             </div>
             <div className="rail__title" style={{ marginTop: 16 }}>nombre_de_prueba</div>
             <input
