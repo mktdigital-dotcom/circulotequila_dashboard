@@ -1,18 +1,22 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // live.js · Capa de datos en vivo desde NocoDB (vía /api/nocodb de Vercel).
 //
-// - useLiveLeads(): trae los leads reales, con polling (tiempo real) + refresh.
-// - mapLeadRowToCard(): traduce una fila de NocoDB al formato de tarjeta que ya
-//   usan las secciones Leads y Panel.
-// - leadsKpis(): calcula KPIs (por tier, etapa, canal, ciudad, score) para el Panel.
+// Alineado a la arquitectura comercial validada con Kenia (v.2026.06b):
+// - Filtra filas vacías / de documentación (solo leads reales: lead_id = L-####).
+// - Traduce `etapa` (incl. en_conversacion, perdido) al pipeline de 10 etapas.
+// - Usa `estatus_mkt` (vocabulario de Kenia, §13) para el próximo toque.
+// - Une Signal_log como línea de tiempo real por lead (§13: bitácora append-only).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-// etapa (texto en NocoDB) → número de etapa (1–10) del pipeline del dashboard.
+const norm = (s) =>
+  (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_\s]+/g, ' ').trim()
+
+// etapa (texto en NocoDB) → nº de etapa (1–10) o pseudo-etapa 'reactivacion'.
 const ETAPA_TO_STAGE = {
   nuevo: 1,
-  conversacion: 2,
   'en conversacion': 2,
+  conversacion: 2,
   calificado: 3,
   interesado: 4,
   transferido: 5,
@@ -20,66 +24,143 @@ const ETAPA_TO_STAGE = {
   propuesta: 6,
   'propuesta aprobada': 6,
   anticipo: 7,
+  'anticipo recibido': 7,
   brief: 8,
+  'brief completado': 8,
   diseno: 9,
   'diseno autorizado': 9,
   produccion: 10,
+  'produccion y entrega': 10,
   entrega: 10,
+  perdido: 'reactivacion',
   reactivacion: 'reactivacion',
 }
 
-const norm = (s) =>
-  (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+// estatus_mkt (§13, vocabulario de Kenia) → próximo toque sugerido.
+const ESTATUS_NEXT = {
+  'en espera para enviar costos': 'Enviar lista de precios del canal',
+  'se enviaron costos': 'Dar seguimiento tras enviar costos',
+  'sin respuesta despues de enviar costos': '⚠ Reactivar: sin respuesta tras costos',
+  'pendiente confirmar llamada': 'Confirmar y agendar la llamada',
+  'lead enviado': 'Handoff a asesor de la ciudad',
+  'se envio link de tienda': 'Seguimiento de compra en Amazon/tienda',
+  'no esta interesado': 'Descartado — evaluar reactivación futura',
+}
 
-const PRECIO_750 = 2250 // estimación de valor por botella (línea empresarial 750 ml)
+const VENDEDOR_CIUDAD = { GDL: 'Vendedor GDL', CDMX: 'Vendedor CDMX', 'Riviera Maya': 'Vendedor Riviera Maya' }
+const PRECIO_BOTELLA = 2250 // estimación de valor (línea empresarial 750 ml)
+
+// Solo son leads reales las filas con lead_id tipo "L-0001" (filtra vacías y notas).
+const LEAD_ID_RE = /^L-?\d{1,6}$/i
+export const isRealLead = (row) => LEAD_ID_RE.test((row?.lead_id || '').toString().trim())
+// Señales reales: su lead_id apunta a un lead L-#### (filtra encabezado/notas).
+export const isRealSignal = (row) => LEAD_ID_RE.test((row?.lead_id || '').toString().trim())
+
+function daysSince(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr.replace(' ', 'T'))
+  if (isNaN(d)) return null
+  return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000))
+}
+
+const relLabel = (dateStr) => {
+  const d = daysSince(dateStr)
+  if (d == null) return '—'
+  if (d === 0) return 'hoy'
+  if (d === 1) return 'hace 1 día'
+  return `hace ${d} días`
+}
 
 export function mapLeadRowToCard(row) {
   const botellas = parseInt(row.botellas, 10)
   const bot = Number.isFinite(botellas) ? botellas : null
-  const etapaKey = norm(row.etapa)
-  const stage = ETAPA_TO_STAGE[etapaKey] ?? 1
+  const stage = ETAPA_TO_STAGE[norm(row.etapa)] ?? 1
   const tier = (row.tier || '').toString().trim().toUpperCase() || null
   const score = row.score != null && row.score !== '' ? Number(row.score) : null
+  const ciudad = row.ciudad || '—'
+  const estatus = (row.estatus_mkt || '').toString().trim()
+  const owner = (row.owner || '').toString().trim()
 
   const tags = []
   if (tier) tags.push('tier ' + tier)
-  if (row.canal) tags.push(row.canal)
   if (row.linea) tags.push(row.linea)
+  if (stage === 'reactivacion') tags.push('reactivación')
 
   return {
-    id: row.lead_id || ('nc-' + (row.Id ?? row.id ?? Math.random().toString(36).slice(2))),
-    ncId: row.Id ?? row.id ?? null,
+    id: (row.lead_id || '').toString().trim(),
+    ncId: row.Id ?? null,
     stage,
     name: row.nombre || row.lead_id || 'Lead sin nombre',
     empresa: row.nombre || '',
-    ciudad: row.ciudad || '—',
+    ciudad,
     bot: bot != null ? bot + ' bot' : '— bot',
     volumen: bot ?? undefined,
     ocasion: row['propósito'] || row.proposito || 'sin especificar',
     proposito: row['propósito'] || row.proposito || '',
-    value: bot != null ? bot * PRECIO_750 : null, // estimado
+    value: bot != null ? bot * PRECIO_BOTELLA : null,
+    valor: bot != null ? bot * PRECIO_BOTELLA : null,
     valueEstimated: bot != null,
     tier,
     score,
     canal: row.canal || '',
     linea: row.linea || '',
-    campaña: row['campaña'] || row.campana || '',
+    campana: row['campaña'] || row.campana || '',
+    anuncio: row.anuncio || '',
     contacto: row.contacto || '',
     fecha: row.fecha || '',
     etapaTxt: row.etapa || '',
-    estatus_mkt: row.estatus_mkt || '',
-    owner: row.owner || '',
+    estatusMkt: estatus,
+    contexto: row.contexto || '',
+    requalifyAt: row.requalify_at || '',
+    owner,
+    // Derivados para Seguimientos / handoff:
+    responsable: owner === 'agente' ? 'Agente IA' : (VENDEDOR_CIUDAD[ciudad] || owner || '—'),
+    vendedor: stage >= 5 ? VENDEDOR_CIUDAD[ciudad] || '—' : null,
+    proximo:
+      ESTATUS_NEXT[norm(estatus)] ||
+      (stage === 'reactivacion' ? '⚠ Reactivar lead perdido' : 'Continuar la conversación'),
     tags,
     notes: [],
+    events: [],
+    ultima: relLabel(row.fecha),
+    dias: daysSince(row.fecha),
   }
 }
 
-// KPIs derivados de los leads reales para el Panel.
+// Une las señales (Signal_log) a cada lead: línea de tiempo + última interacción.
+function attachSignals(cards, signalRows) {
+  const byLead = {}
+  for (const s of signalRows.filter(isRealSignal)) {
+    const lid = s.lead_id.toString().trim()
+    ;(byLead[lid] ||= []).push({
+      t: s.ts || '',
+      e: s['valor/detalle'] || s.tipo || 'evento',
+      tipo: s.tipo || '',
+      plantilla: s.plantilla_id || '',
+      canal: s.canal || '',
+      actor: s.actor || '',
+    })
+  }
+  return cards.map((c) => {
+    const evs = (byLead[c.id] || []).sort((a, b) => (a.t < b.t ? -1 : 1))
+    if (!evs.length) return c
+    const lastTs = evs[evs.length - 1].t
+    return {
+      ...c,
+      events: evs,
+      ultima: relLabel(lastTs) !== '—' ? relLabel(lastTs) : c.ultima,
+      dias: daysSince(lastTs) ?? c.dias,
+    }
+  })
+}
+
+// KPIs derivados de los leads reales (Panel · Resumen del embudo).
 export function leadsKpis(cards) {
   const total = cards.length
   const byTier = { A: 0, B: 0, C: 0, D: 0 }
   const byCiudad = {}
   const byCanal = {}
+  const byLinea = {}
   const byStage = {}
   let scoreSum = 0
   let scoreN = 0
@@ -87,29 +168,44 @@ export function leadsKpis(cards) {
     if (c.tier && byTier[c.tier] != null) byTier[c.tier]++
     if (c.ciudad) byCiudad[c.ciudad] = (byCiudad[c.ciudad] || 0) + 1
     if (c.canal) byCanal[c.canal] = (byCanal[c.canal] || 0) + 1
-    const st = c.stage
-    byStage[st] = (byStage[st] || 0) + 1
+    if (c.linea) byLinea[c.linea] = (byLinea[c.linea] || 0) + 1
+    byStage[c.stage] = (byStage[c.stage] || 0) + 1
     if (c.score != null && !Number.isNaN(c.score)) {
       scoreSum += c.score
       scoreN++
     }
   }
-  const topCiudades = Object.entries(byCiudad).sort((a, b) => b[1] - a[1]).slice(0, 5)
-  const topCanales = Object.entries(byCanal).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  const top = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 6)
+  // Embudo (etapas 1–4 marketing, 5+ comercial), conteo real.
+  const numStages = Object.entries(byStage).filter(([k]) => k !== 'reactivacion')
   return {
     total,
     byTier,
     byStage,
-    topCiudades,
-    topCanales,
+    byLinea,
+    topCiudades: top(byCiudad),
+    topCanales: top(byCanal),
     scorePromedio: scoreN ? Math.round(scoreSum / scoreN) : null,
     calientes: byTier.A,
+    enConversacion: (byStage[2] || 0) + (byStage[1] || 0),
+    calificados: (byStage[3] || 0) + (byStage[4] || 0),
+    aVentas: numStages.reduce((s, [k, v]) => (Number(k) >= 5 ? s + v : s), 0),
+    reactivacion: byStage['reactivacion'] || 0,
   }
 }
 
 const ENDPOINT = '/api/nocodb'
 
-// Hook de leads en vivo, con polling configurable (por defecto 30s).
+async function getResource(resource) {
+  const res = await fetch(`${ENDPOINT}?resource=${resource}`, { headers: { accept: 'application/json' } })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+// Hook principal: leads + señales unidos, con polling (tiempo real).
 export function useLiveLeads({ pollMs = 30000 } = {}) {
   const [leads, setLeads] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -119,17 +215,16 @@ export function useLiveLeads({ pollMs = 30000 } = {}) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`${ENDPOINT}?resource=leads`, { headers: { accept: 'application/json' } })
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}))
-        throw new Error(body.error || `HTTP ${res.status}`)
-      }
-      const data = await res.json()
+      const [leadsData, signalsData] = await Promise.all([
+        getResource('leads'),
+        getResource('signals').catch(() => ({ list: [] })),
+      ])
       if (!alive.current) return
-      const cards = (data.list || []).map(mapLeadRowToCard)
-      setLeads(cards)
+      const cards = (leadsData.list || []).filter(isRealLead).map(mapLeadRowToCard)
+      const enriched = attachSignals(cards, signalsData.list || [])
+      setLeads(enriched)
       setError('')
-      setLastUpdated(data.fetchedAt || new Date().toISOString())
+      setLastUpdated(leadsData.fetchedAt || new Date().toISOString())
     } catch (e) {
       if (!alive.current) return
       setError(String(e.message || e))

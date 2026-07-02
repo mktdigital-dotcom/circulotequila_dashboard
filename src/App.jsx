@@ -124,7 +124,7 @@ export default function App() {
     panel: <Panel period={period} setPeriod={setPeriod} live={live} />,
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     agente: <Agente />,
-    seguimientos: <Seguimientos query={query} />,
+    seguimientos: <Seguimientos query={query} board={board} />,
     arquitectura: <Arquitectura />,
   }
 
