@@ -11,7 +11,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 const HOST = (process.env.NOCODB_HOST || 'https://n8n-nocodb.slmipf.easypanel.host').replace(/\/$/, '')
-const TOKEN = process.env.NOCODB_TOKEN || process.env.VITE_NOCODB_TOKEN || ''
+// Acepta varios nombres comunes por si la variable se nombró distinto en Vercel.
+const TOKEN_NAMES = ['NOCODB_TOKEN', 'VITE_NOCODB_TOKEN', 'NOCODB_API_TOKEN', 'NC_TOKEN', 'XC_TOKEN', 'NOCO_TOKEN']
+const TOKEN = TOKEN_NAMES.map((n) => process.env[n]).find(Boolean) || ''
 
 // Base "Proceso Comercial - Circulo Tequila" (pw5fbulfxbvr6ko)
 const TABLES = {
@@ -46,7 +48,10 @@ async function fetchAll(tableId) {
 
 export default async function handler(req, res) {
   if (!TOKEN) {
-    res.status(500).json({ error: 'Falta NOCODB_TOKEN en las variables de entorno de Vercel.' })
+    res.status(500).json({
+      error: 'Falta el token de NocoDB. Crea la variable NOCODB_TOKEN en Vercel (Settings → Environment Variables) para el entorno del deploy (Production y/o Preview) y vuelve a desplegar.',
+      buscadas: TOKEN_NAMES,
+    })
     return
   }
   const resource = (req.query?.resource || 'leads').toString()

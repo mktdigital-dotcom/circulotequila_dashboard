@@ -30,7 +30,7 @@ function LiveKpis({ live }) {
         </span>
         <span className="card__q">
           {live?.error
-            ? 'Sin conexión a la base — revisa NOCODB_TOKEN en Vercel'
+            ? `Sin conexión: ${live.error}`
             : ready
               ? `${k.total} leads reales${rel ? ' · actualizado ' + rel : ''}`
               : 'Conectando con la base de datos…'}
