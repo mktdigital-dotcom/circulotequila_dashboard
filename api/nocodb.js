@@ -13,7 +13,19 @@
 const HOST = (process.env.NOCODB_HOST || 'https://n8n-nocodb.slmipf.easypanel.host').replace(/\/$/, '')
 // Acepta varios nombres comunes por si la variable se nombró distinto en Vercel.
 const TOKEN_NAMES = ['NOCODB_TOKEN', 'VITE_NOCODB_TOKEN', 'NOCODB_API_TOKEN', 'NC_TOKEN', 'XC_TOKEN', 'NOCO_TOKEN']
-const TOKEN = TOKEN_NAMES.map((n) => process.env[n]).find(Boolean) || ''
+// Limpia espacios, saltos de línea y comillas que a veces se cuelan al pegar en Vercel.
+const RAW_TOKEN = TOKEN_NAMES.map((n) => process.env[n]).find(Boolean) || ''
+const TOKEN = RAW_TOKEN.trim().replace(/^['"]|['"]$/g, '')
+
+// NocoDB acepta el token por 'xc-token' (API tokens) o 'Authorization: Bearer'
+// (personal access tokens nc_pat_ en versiones recientes). Probamos ambos.
+async function ncFetch(url) {
+  let res = await fetch(url, { headers: { 'xc-token': TOKEN, accept: 'application/json' } })
+  if (res.status === 401) {
+    res = await fetch(url, { headers: { authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
+  }
+  return res
+}
 
 // Base "Proceso Comercial - Circulo Tequila" (pw5fbulfxbvr6ko)
 const TABLES = {
@@ -32,7 +44,7 @@ async function fetchAll(tableId) {
   // NocoDB v2: /api/v2/tables/{tableId}/records — pagina de 200 en 200.
   for (let guard = 0; guard < 50; guard++) {
     const url = `${HOST}/api/v2/tables/${tableId}/records?limit=200&page=${page}`
-    const res = await fetch(url, { headers: { 'xc-token': TOKEN, accept: 'application/json' } })
+    const res = await ncFetch(url)
     if (!res.ok) {
       const body = await res.text()
       throw new Error(`NocoDB ${res.status}: ${body.slice(0, 300)}`)
@@ -47,16 +59,32 @@ async function fetchAll(tableId) {
 }
 
 export default async function handler(req, res) {
-  // Diagnóstico: /api/nocodb?diag=1 → confirma que la función corre y si ve el token
-  // (sin revelarlo). Sirve para verificar el deploy desde el navegador.
+  // Diagnóstico: /api/nocodb?diag=1 → prueba la conexión real y reporta qué
+  // método de auth funciona, sin revelar el token.
   if (req.query?.diag != null) {
-    res.status(200).json({
+    const probeUrl = `${HOST}/api/v2/tables/${TABLES.leads}/records?limit=1`
+    const out = {
       ok: true,
       funcionServerless: 'activa',
       tokenDetectado: !!TOKEN,
       variableUsada: TOKEN_NAMES.find((n) => process.env[n]) || null,
+      tokenPrefijo: TOKEN ? TOKEN.slice(0, 7) : null, // ej. "nc_pat_"
+      tokenLongitud: TOKEN.length, // para detectar truncado/espacios
       host: HOST,
-    })
+    }
+    if (TOKEN) {
+      try {
+        const r1 = await fetch(probeUrl, { headers: { 'xc-token': TOKEN, accept: 'application/json' } })
+        out.pruebaXcToken = r1.status
+        const r2 = await fetch(probeUrl, { headers: { authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
+        out.pruebaBearer = r2.status
+        out.conexionOk = r1.ok || r2.ok
+        if (!r1.ok && !r2.ok) out.detalle = (await r1.text()).slice(0, 200)
+      } catch (e) {
+        out.errorRed = String(e.message || e)
+      }
+    }
+    res.status(200).json(out)
     return
   }
   if (!TOKEN) {
