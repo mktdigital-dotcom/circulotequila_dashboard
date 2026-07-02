@@ -132,13 +132,15 @@ function attachSignals(cards, signalRows) {
   const byLead = {}
   for (const s of signalRows.filter(isRealSignal)) {
     const lid = s.lead_id.toString().trim()
+    // Tolerante a los dos esquemas: Signal_log (valor/detalle, tipo, actor) y
+    // Mensajes (texto, emisor, etiqueta).
     ;(byLead[lid] ||= []).push({
       t: s.ts || '',
-      e: s['valor/detalle'] || s.tipo || 'evento',
-      tipo: s.tipo || '',
+      e: s['valor/detalle'] || s.texto || s.etiqueta || s.tipo || 'evento',
+      tipo: s.tipo || s.etiqueta || '',
       plantilla: s.plantilla_id || '',
       canal: s.canal || '',
-      actor: s.actor || '',
+      actor: s.actor || s.emisor || '',
     })
   }
   return cards.map((c) => {

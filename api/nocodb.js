@@ -7,10 +7,10 @@
 //
 // Config en Vercel (Settings → Environment Variables):
 //   NOCODB_TOKEN = <tu API token de NocoDB>   (obligatorio)
-//   NOCODB_HOST  = https://n8n-nocodb.slmipf.easypanel.host   (opcional, ya por defecto)
+//   NOCODB_HOST  = https://n8n-nocodb.pzqn6b.easypanel.host   (opcional, ya por defecto)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HOST = (process.env.NOCODB_HOST || 'https://n8n-nocodb.slmipf.easypanel.host').replace(/\/$/, '')
+const HOST = (process.env.NOCODB_HOST || 'https://n8n-nocodb.pzqn6b.easypanel.host').replace(/\/$/, '')
 // Acepta varios nombres comunes por si la variable se nombró distinto en Vercel.
 const TOKEN_NAMES = ['NOCODB_TOKEN', 'VITE_NOCODB_TOKEN', 'NOCODB_API_TOKEN', 'NC_TOKEN', 'XC_TOKEN', 'NOCO_TOKEN']
 // Limpia espacios, saltos de línea y comillas que a veces se cuelan al pegar en Vercel.
@@ -27,15 +27,12 @@ async function ncFetch(url) {
   return res
 }
 
-// Base "Proceso Comercial - Circulo Tequila" (pw5fbulfxbvr6ko)
+// Instancia pzqn6b · base "Circulo Tequila Proceso Comercial" (ppqrrdcbc6zxi9h)
+// Tablas tomadas del flujo real "Círculo WEB" (donde el agente escribe).
 const TABLES = {
-  leads: 'm2iuluccpx3i11o',
-  signals: 'mebd3yz1aj8e291',
-  catalogo: 'mrbt25f6tfuafmv',
-  plantilla: 'mf9unimceympa4b',
-  rubrica: 'mw8ifbh4qmln0gd',
-  documentacion: 'm5jrvujitikscef',
-  descripcionUso: 'mrdekwjfxu5e2y9',
+  leads: 'm29hmkkqhrq8wev', // Leads
+  signals: 'mm1dc5yyzuspkiw', // Mensajes (línea de tiempo por lead)
+  senales: 'mqbezsfl3302vl5', // Señales
 }
 
 async function fetchAll(tableId) {
