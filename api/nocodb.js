@@ -47,6 +47,18 @@ async function fetchAll(tableId) {
 }
 
 export default async function handler(req, res) {
+  // Diagnóstico: /api/nocodb?diag=1 → confirma que la función corre y si ve el token
+  // (sin revelarlo). Sirve para verificar el deploy desde el navegador.
+  if (req.query?.diag != null) {
+    res.status(200).json({
+      ok: true,
+      funcionServerless: 'activa',
+      tokenDetectado: !!TOKEN,
+      variableUsada: TOKEN_NAMES.find((n) => process.env[n]) || null,
+      host: HOST,
+    })
+    return
+  }
   if (!TOKEN) {
     res.status(500).json({
       error: 'Falta el token de NocoDB. Crea la variable NOCODB_TOKEN en Vercel (Settings → Environment Variables) para el entorno del deploy (Production y/o Preview) y vuelve a desplegar.',

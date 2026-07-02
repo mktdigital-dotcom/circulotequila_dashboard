@@ -320,14 +320,14 @@ export default function Leads({ board, setBoard, query = '' }) {
     <section>
       <div className="section-head">
         <div>
-          <div className="eyebrow">Leads · mapa de proceso</div>
+          <div className="eyebrow">Pipeline · mapa de proceso</div>
           <h1 className="headline">
             Pipeline <span className="gold">vivo.</span>
           </h1>
           <p className="subhead">
-            La trazabilidad real: las 10 etapas del proceso, de marketing a comercial, con la compuerta
-            en medio. Arrastra para mover de etapa; toca un lead para abrir, <b style={{ color: 'var(--ink)' }}>editar</b> y
-            anotar su contexto.
+            Cada lead en su etapa — de marketing a comercial, con la compuerta en medio. Los leads del
+            simulador entran aquí como prueba. Arrastra para mover de etapa; toca un lead para abrir,{' '}
+            <b style={{ color: 'var(--ink)' }}>editar</b> y anotar su contexto.
           </p>
         </div>
         <div className="pipeline-badge">

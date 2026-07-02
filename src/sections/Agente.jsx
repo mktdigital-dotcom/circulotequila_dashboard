@@ -39,7 +39,54 @@ async function callWebhook({ phone, text, name }) {
   }
 }
 
-export default function Agente() {
+// Construye un lead a partir de la conversación de prueba, con el mismo formato
+// que usa el Pipeline — para que el simulador se registre como un lead real.
+function buildSimLead(phone, messages, det, sc) {
+  const stage = sc?.gate
+    ? 'reactivacion'
+    : sc?.tier === 'A'
+      ? 4
+      : sc?.tier === 'B'
+        ? 3
+        : messages.filter((m) => m.who === 'user').length >= 2
+          ? 2
+          : 1
+  const bottles = sc?.bottles ?? null
+  const ciudad = det?.ciudad || '—'
+  const campana = det?.campana || ''
+  return {
+    id: 'SIM-' + phone.replace(/\D/g, '').slice(-4),
+    esPrueba: true,
+    stage,
+    name: 'Prueba' + (campana ? ' · ' + campana : '') + (ciudad && ciudad !== '—' ? ' · ' + ciudad : ''),
+    empresa: '',
+    ciudad,
+    bot: bottles != null ? bottles + ' bot' : '— bot',
+    volumen: bottles ?? undefined,
+    ocasion: det?.linea || 'simulador',
+    proposito: det?.linea || '',
+    value: bottles != null ? bottles * 2250 : null,
+    valor: bottles != null ? bottles * 2250 : null,
+    valueEstimated: bottles != null,
+    tier: sc?.tier || null,
+    score: sc?.score ?? null,
+    canal: 'whatsapp',
+    linea: det?.linea || '',
+    campana,
+    estatusMkt: 'Prueba del simulador',
+    contexto: (messages.find((m) => m.who === 'user')?.text || '').slice(0, 160),
+    tags: ['prueba', campana].filter(Boolean),
+    notes: [],
+    events: messages.map((m) => ({ t: m.t, e: m.text, tipo: m.who === 'user' ? 'cliente' : 'agente' })),
+    ultima: 'ahora',
+    dias: 0,
+    responsable: 'Agente IA · simulador',
+    vendedor: stage >= 5 ? ciudad : null,
+    proximo: sc?.tier === 'A' ? 'Handoff a asesor de la ciudad' : 'Continuar la calificación',
+  }
+}
+
+export default function Agente({ onLead, goToPipeline }) {
   const [phone, setPhone] = useState(simConfig.testPhones[0].phone)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -109,17 +156,25 @@ export default function Agente() {
       m.map((x) => (x === userMsg ? { ...x, status: 'delivered' } : x))
     )
 
+    // El lead de prueba entra al Pipeline de inmediato y se va enriqueciendo.
+    onLead?.(buildSimLead(phone, nextMessages, merged, sc))
+
     // ── Llamada al webhook real ──────────────────────────────────────────────
     setTyping(true)
     try {
       const { partes } = await callWebhook({ phone, text, name: 'Prueba WhatsApp' })
       setMessages((m) => m.map((x) => (x.who === 'user' ? { ...x, status: 'read' } : x)))
+      const convo = [...nextMessages]
       // Cada "parte" es una burbuja separada, escalonada como en WhatsApp real.
       for (let i = 0; i < partes.length; i++) {
+        const agentMsg = { who: 'agent', text: partes[i], t: now() }
+        convo.push(agentMsg)
         // eslint-disable-next-line no-await-in-loop
         await new Promise((r) => setTimeout(r, i === 0 ? 200 : 700))
-        setMessages((m) => [...m, { who: 'agent', text: partes[i], t: now() }])
+        setMessages((m) => [...m, agentMsg])
       }
+      // Actualiza el lead con la respuesta del agente en su línea de tiempo.
+      onLead?.(buildSimLead(phone, convo, merged, sc))
     } catch (e) {
       const msg =
         e.name === 'AbortError'
@@ -294,6 +349,12 @@ export default function Agente() {
                 {deteccion.vendedor && <Meta k="asesor" v={deteccion.vendedor} />}
                 {score?.bottles != null && <Meta k="botellas" v={String(score.bottles)} />}
               </div>
+            )}
+
+            {messages.length > 0 && (
+              <button className="sim-pipeline-link" onClick={() => goToPipeline?.()}>
+                <span className="dot-mini bg-green" /> Guardado en el Pipeline como lead de prueba · ver →
+              </button>
             )}
 
             {signalLog.length > 0 && (

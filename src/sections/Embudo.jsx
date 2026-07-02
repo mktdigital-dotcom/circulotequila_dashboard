@@ -9,9 +9,9 @@ export default function Embudo({ live, board = [], query = '', period = 'mes' })
     <section>
       <Head
         eyebrow="Resumen del embudo"
-        title="Una sola"
-        gold="verdad."
-        sub="De marketing a ventas, en una vista: cuántos leads entran, en qué etapa están, qué canal los trae y qué pasó tras el handoff — en vivo desde NocoDB."
+        title="El proceso comercial,"
+        gold="en vivo."
+        sub="De marketing a ventas, en una vista: cuántos leads entran, en qué etapa están, qué canal los trae y qué pasó tras el handoff — con la data real de NocoDB."
       />
       <div className="stack">
         <LiveKpis live={live} />

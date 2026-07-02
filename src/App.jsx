@@ -24,15 +24,18 @@ function loadBoard() {
 }
 
 // Fusiona los leads en vivo de NocoDB con el tablero actual: NocoDB es la fuente
-// de verdad (etapa, tier, datos), pero conservamos las notas que el usuario haya
-// escrito localmente, indexadas por id de lead.
+// de verdad (etapa, tier, datos), pero conservamos las notas escritas localmente
+// y los leads de prueba generados por el simulador (que no viven en NocoDB).
 function mergeLive(liveCards, prevBoard) {
   const prevById = new Map((prevBoard || []).map((c) => [c.id, c]))
-  return liveCards.map((c) => {
+  const liveIds = new Set(liveCards.map((c) => c.id))
+  const pruebas = (prevBoard || []).filter((c) => c.esPrueba && !liveIds.has(c.id))
+  const merged = liveCards.map((c) => {
     const prev = prevById.get(c.id)
     if (!prev) return c
     return { ...c, notes: prev.notes?.length ? prev.notes : c.notes }
   })
+  return [...pruebas, ...merged]
 }
 
 function exportCSV(cards) {
@@ -97,6 +100,18 @@ export default function App() {
   // limpiar búsqueda al cambiar de sección
   useEffect(() => setQuery(''), [section])
 
+  // Alta/actualización de un lead (lo usa el simulador para meter leads de prueba
+  // al Pipeline, y para mantenerlos vivos conforme avanza la conversación).
+  const upsertLead = (lead) => {
+    setBoard((prev) => {
+      const i = prev.findIndex((c) => c.id === lead.id)
+      if (i === -1) return [lead, ...prev]
+      const next = prev.slice()
+      next[i] = { ...next[i], ...lead }
+      return next
+    })
+  }
+
   const addLead = () => {
     const n = board.filter((c) => c.stage === 1).length + 1
     setBoard((prev) => [
@@ -125,7 +140,7 @@ export default function App() {
     embudo: <Embudo live={live} board={board} query={query} period={period} />,
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     tendencias: <Tendencias live={live} />,
-    agente: <Agente />,
+    agente: <Agente onLead={upsertLead} goToPipeline={() => setSection('leads')} />,
     arquitectura: <Arquitectura />,
   }
 
