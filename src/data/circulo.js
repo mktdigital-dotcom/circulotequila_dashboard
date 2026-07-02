@@ -250,12 +250,10 @@ export const mondayQuestions = [
 // referencia de Arquitectura. `live` marca las que se alimentan de NocoDB.
 export const nav = [
   { n: '01', key: 'embudo', label: 'Resumen del embudo', live: true },
-  { n: '02', key: 'leads', label: 'Seguimiento y estado', live: true },
-  { n: '03', key: 'canales', label: 'Rendimiento por canal', live: true },
-  { n: '04', key: 'conversion', label: 'Conversión comercial', live: true },
-  { n: '05', key: 'tendencias', label: 'Tendencias y análisis', live: true },
-  { n: '06', key: 'agente', label: 'Agente IA', live: true },
-  { n: '07', key: 'arquitectura', label: 'Arquitectura' },
+  { n: '02', key: 'leads', label: 'Pipeline', live: true },
+  { n: '03', key: 'tendencias', label: 'Tendencias y análisis', live: true },
+  { n: '04', key: 'agente', label: 'Agente IA', live: true },
+  { n: '05', key: 'arquitectura', label: 'Arquitectura' },
 ]
 
 export const peso = (n) =>

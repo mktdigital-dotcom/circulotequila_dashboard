@@ -1,7 +1,9 @@
-import { Head, LiveKpis, Funnel, funnelStagesFor } from './panelParts.jsx'
+import { Head, LiveKpis, Funnel, funnelStagesFor, ChannelsCard, HandoffCard } from './panelParts.jsx'
+import { FollowupList } from './Seguimientos.jsx'
 
-// Sección 1 · Resumen general del embudo.
-export default function Embudo({ live, period = 'mes' }) {
+// Página principal · Resumen del embudo (una sola vista con todo lo esencial:
+// KPIs + embudo + rendimiento por canal + conversión comercial + seguimiento).
+export default function Embudo({ live, board = [], query = '', period = 'mes' }) {
   const f = funnelStagesFor(live, period)
   return (
     <section>
@@ -9,16 +11,27 @@ export default function Embudo({ live, period = 'mes' }) {
         eyebrow="Resumen del embudo"
         title="Una sola"
         gold="verdad."
-        sub="Cuántos leads entran, en qué etapa están y cuántos llegaron a ventas — la fotografía del embudo, en vivo desde NocoDB."
+        sub="De marketing a ventas, en una vista: cuántos leads entran, en qué etapa están, qué canal los trae y qué pasó tras el handoff — en vivo desde NocoDB."
       />
       <div className="stack">
         <LiveKpis live={live} />
+
         <div className="card card--pad-lg">
           <div className="card__head">
             <span className="card__tag">Pregunta 1</span>
             <span className="card__q">Cuántos generamos, cuántos calificaron, cuántos llegaron a ventas</span>
           </div>
           <Funnel stages={f.stages} showLeak={f.showLeak} />
+        </div>
+
+        <div className="grid grid--2">
+          <ChannelsCard live={live} />
+          <HandoffCard live={live} />
+        </div>
+
+        <div>
+          <div className="loss__title" style={{ margin: '4px 0 14px' }}>Seguimiento y reactivación</div>
+          <FollowupList board={board} query={query} />
         </div>
       </div>
     </section>
