@@ -44,13 +44,19 @@ function LeadDrawer({ card, onClose, onChange }) {
   const set = (patch) => onChange(patch)
   const accent = accentOf(card.stage)
 
-  const checks = gateFields.map((f) => {
-    if (f === 'volumen') return { f, ok: (card.volumen || 0) >= 12, val: card.volumen ? card.volumen + ' bot' : '—' }
-    return { f, ok: !!card[f], val: card[f] || '—' }
-  })
+  // Compuerta de calificación alineada a la arquitectura §05 (lo que el agente
+  // sí detecta): ciudad, volumen ≥ 12, propósito y señal de comportamiento.
+  const checks = [
+    { name: 'Ciudad', ok: !!card.ciudad && card.ciudad !== '—', val: card.ciudad || '—' },
+    { name: 'Volumen ≥ 12', ok: (card.volumen || 0) >= 12, val: card.volumen ? card.volumen + ' bot' : '—' },
+    { name: 'Propósito', ok: !!card.proposito, val: card.proposito || '—' },
+    {
+      name: 'Señal de comportamiento',
+      ok: card.tier === 'A' || card.tier === 'B' || (card.score || 0) >= 40,
+      val: card.tier ? 'tier ' + card.tier + (card.score != null ? ' · ' + card.score : '') : '—',
+    },
+  ]
   const completeness = Math.round((checks.filter((c) => c.ok).length / checks.length) * 100)
-  const obj = card.objecion ? objLabel(card.objecion) : null
-  const hasCtx = card.proposito || card.linea || (card.events && card.events.length)
 
   const addTag = () => {
     const t = tagInput.trim()
@@ -121,64 +127,49 @@ function LeadDrawer({ card, onClose, onChange }) {
           )}
         </div>
 
-        {(hasCtx || editing) && (
+        {/* Data que el agente recopila en la conversación (NocoDB) */}
+        <div className="drawer__section">
+          <div className="drawer__label">Data del agente · NocoDB</div>
+          <div className="ctx-grid">
+            <Field label="Línea de negocio"><span className="chip">{card.linea || '—'}</span></Field>
+            <Field label="Propósito">{card.proposito || '—'}</Field>
+            <Field label="Volumen">{card.volumen ? card.volumen + ' bot' : '—'}</Field>
+            <Field label="Ciudad">{card.ciudad || '—'}</Field>
+            <Field label="Canal">{card.canal || '—'}</Field>
+            <Field label="Campaña">{card.campana || '—'}</Field>
+            {card.anuncio && <Field label="Anuncio">{card.anuncio}</Field>}
+            <Field label="Contacto">{card.contacto || '—'}</Field>
+            <Field label="Fecha de entrada">{card.fecha || '—'}</Field>
+            <Field label="Tier · score">
+              {card.tier ? (
+                <span className="chip">{card.tier}{card.score != null ? ' · ' + card.score : ''}</span>
+              ) : '—'}
+            </Field>
+            {card.vendedor && <Field label="Vendedor asignado">{card.vendedor}</Field>}
+          </div>
+        </div>
+
+        {card.contexto && (
           <div className="drawer__section">
-            <div className="drawer__label">Contexto que viaja</div>
-            <div className="ctx-grid">
-              <Field label="Línea de negocio">
-                {editing ? <Sel v={card.linea} set={(v) => set({ linea: v })} opts={['empresarial', 'turismo', 'retail', 'digital']} /> : <span className="chip">{card.linea || '—'}</span>}
-              </Field>
-              <Field label="Propósito">{editing ? <In v={card.proposito} set={(v) => set({ proposito: v })} ph="propósito" /> : card.proposito || '—'}</Field>
-              <Field label="Fecha objetivo">{editing ? <In v={card.fechaObjetivo} set={(v) => set({ fechaObjetivo: v })} ph="2026-12-05" /> : card.fechaObjetivo || '— por definir'}</Field>
-              <Field label="Volumen">{editing ? <In v={card.volumen} set={(v) => set({ volumen: v })} type="number" ph="botellas" /> : (card.volumen ? card.volumen + ' bot' : '—')}</Field>
-              <Field label="Presupuesto">
-                {editing ? <Sel v={card.budget} set={(v) => set({ budget: v })} opts={['confirmado', 'estimado', 'desconocido']} /> : <span className={'tag-budget tag-' + (card.budget || 'desconocido')}>{card.budget || '—'}</span>}
-              </Field>
-              <Field label="Canal preferido">{editing ? <In v={card.canalPreferido} set={(v) => set({ canalPreferido: v })} /> : card.canalPreferido || '—'}</Field>
-              <Field label="Afinidad">
-                {editing ? <In v={card.icpFit} set={(v) => set({ icpFit: v })} type="number" ph="0–100" /> : (
-                  <span className="icp"><span className="icp__bar"><i style={{ width: (card.icpFit || 0) + '%', background: accent }} /></span>{card.icpFit ?? '—'}</span>
-                )}
-              </Field>
-              <Field label="Stakeholders">
-                {editing ? <In v={(card.stakeholders || []).join(', ')} set={(v) => set({ stakeholders: v.split(',').map((s) => s.trim()).filter(Boolean) })} ph="compras, dirección" /> : ((card.stakeholders || []).length ? card.stakeholders.join(' · ') : '—')}
-              </Field>
-            </div>
+            <div className="drawer__label">Contexto (resumen del agente)</div>
+            <p className="muted" style={{ fontSize: 13, lineHeight: 1.55, color: 'var(--ink-soft)' }}>{card.contexto}</p>
           </div>
         )}
 
         <div className="drawer__section">
-          <div className="drawer__label">Última promesa</div>
-          <div className="promise">
-            {editing ? <In v={card.ultimaPromesa} set={(v) => set({ ultimaPromesa: v })} ph="qué se prometió" /> : <span>{card.ultimaPromesa || 'Ninguna registrada'}</span>}
-            {editing ? (
-              <Sel v={card.promesaStatus} set={(v) => set({ promesaStatus: v })} opts={['pendiente', 'cumplida']} />
-            ) : (
-              card.promesaStatus && <span className={'chip ' + (card.promesaStatus === 'pendiente' ? 'chip--idle' : 'chip--ok')}>{card.promesaStatus}</span>
-            )}
-          </div>
-          <div className="next-action">
-            <span className="drawer__label" style={{ marginBottom: 6 }}>Próxima acción</span>
-            {editing ? <In v={card.nextAction} set={(v) => set({ nextAction: v })} ph="siguiente paso" /> : (card.nextAction || '—')}
-            {!editing && card.touches > 0 && <span className="touches">· {card.touches} toque(s) sin respuesta</span>}
+          <div className="drawer__label">Estatus y próximo toque</div>
+          <div className="ctx-grid">
+            <Field label="Estatus MKT">{card.estatusMkt || '—'}</Field>
+            <Field label="Etapa">{card.etapaTxt || '—'}</Field>
+            <Field label="Próximo toque">
+              <span className={card.proximo?.startsWith('⚠') ? 'lead-next warn' : ''}>{card.proximo || '—'}</span>
+            </Field>
+            <Field label="Responsable">{card.responsable || '—'}</Field>
+            {card.requalifyAt && <Field label="Reactivar el">{card.requalifyAt}</Field>}
           </div>
         </div>
 
-        {(obj || editing) && (
-          <div className="drawer__section">
-            <div className="drawer__label">Objeción abierta</div>
-            {editing ? (
-              <Sel v={card.objecion || ''} set={(v) => set({ objecion: v || null })} opts={[{ v: '', l: '— ninguna' }, ...arquitectura.objeciones.map((o) => ({ v: o.cat, l: o.tipica }))]} />
-            ) : obj ? (
-              <div className="objection">
-                <span className="chip chip--react">{obj.tipica}</span>
-                <p className="muted" style={{ fontSize: 12.5, lineHeight: 1.5, marginTop: 8 }}>{obj.marco}</p>
-              </div>
-            ) : null}
-          </div>
-        )}
-
-        {/* compuerta */}
+        {/* Compuerta de calificación (§05) */}
         <div className="drawer__section">
           <div className="drawer__label">
             Compuerta · calificación
@@ -186,9 +177,9 @@ function LeadDrawer({ card, onClose, onChange }) {
           </div>
           <div className="gate-list">
             {checks.map((c) => (
-              <div className="gate-item" key={c.f}>
+              <div className="gate-item" key={c.name}>
                 <span className={'gate-dot' + (c.ok ? ' ok' : '')}>{c.ok ? '✓' : '○'}</span>
-                <span className="gate-name">{GATE_LABEL[c.f]}</span>
+                <span className="gate-name">{c.name}</span>
                 <span className="gate-val">{String(c.val)}</span>
               </div>
             ))}
