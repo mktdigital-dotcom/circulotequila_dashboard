@@ -10,6 +10,19 @@ que ya calcula. Estos son los cambios, con las expresiones exactas.
 
 ---
 
+## Cambio 0 · Nodo **"Telefonos de prueba"** (IF) — permitir sesiones nuevas
+Hoy el gate solo deja pasar 3 números fijos. El simulador ahora puede crear
+"sesiones nuevas" con teléfonos sintéticos que empiezan con **`+521555`**. Para
+que esas pruebas también reciban respuesta del agente, agregar una condición
+(combinator **OR**):
+
+- `{{ $json.whatsappPhone }}` **starts with** `+521555`
+
+Así cualquier prueba del simulador (las 3 fijas + las nuevas) recibe respuesta,
+y los números reales de clientes siguen fuera del modo prueba.
+
+---
+
 ## Cambio 1 · Nodo **"Crear Lead"** (NocoDB create → tabla Leads)
 Agregar al mapeo de campos (junto a los existentes):
 

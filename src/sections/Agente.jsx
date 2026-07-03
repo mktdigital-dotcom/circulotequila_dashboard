@@ -118,6 +118,22 @@ function buildSimLead(phone, messages, det, sc, testName) {
   }
 }
 
+// Sesiones de prueba extra creadas al vuelo ("+ Nueva prueba"): cada una tiene
+// su propio teléfono sintético (prefijo +521555000) = conversación y lead nuevos.
+const SESSIONS_KEY = 'circulo.simsessions.v1'
+const loadSessions = () => {
+  try {
+    return JSON.parse(localStorage.getItem(SESSIONS_KEY)) || []
+  } catch {
+    return []
+  }
+}
+const saveSessions = (a) => {
+  try {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(a))
+  } catch {}
+}
+
 // El historial de cada conversación de prueba se queda guardado por teléfono
 // (localStorage): al cambiar de teléfono o recargar, la conversación sigue ahí.
 const SIM_STORE = 'circulo.simchat.v1'
@@ -137,6 +153,8 @@ const saveStore = (s) => {
 export default function Agente({ onLead, goToPipeline }) {
   const firstPhone = simConfig.testPhones[0].phone
   const [phone, setPhone] = useState(firstPhone)
+  // Sesiones extra creadas con "+ Nueva prueba" (además de los 3 fijos).
+  const [sessions, setSessions] = useState(loadSessions)
   const [testName, setTestName] = useState(() => loadStore()[firstPhone]?.testName || 'Kenia Prueba')
   const [messages, setMessages] = useState(() => loadStore()[firstPhone]?.messages || [])
   const [input, setInput] = useState('')
@@ -185,8 +203,39 @@ export default function Agente({ onLead, goToPipeline }) {
     setDeteccion(sess.deteccion || null)
     setScore(sess.score || null)
     setSignalLog(sess.signalLog || [])
-    if (sess.testName) setTestName(sess.testName)
+    setTestName(sess.testName || 'Prueba nueva')
     setError('')
+  }
+
+  // Crea una sesión de prueba nueva (teléfono sintético con prefijo de prueba) y
+  // arranca su conversación en limpio.
+  const nuevaPrueba = () => {
+    const n = simConfig.testPhones.length + sessions.length + 1
+    const newPhone = '+521555' + String(1000000 + n).slice(-7)
+    const label = 'Prueba ' + n
+    const next = [...sessions, { phone: newPhone, label }]
+    setSessions(next)
+    saveSessions(next)
+    const s = loadStore()
+    s[newPhone] = { messages: [], deteccion: null, score: null, signalLog: [], testName: label }
+    saveStore(s)
+    setPhone(newPhone)
+    setMessages([])
+    setDeteccion(null)
+    setScore(null)
+    setSignalLog([])
+    setTestName(label)
+    setError('')
+  }
+
+  const borrarSesion = (p) => {
+    const next = sessions.filter((s) => s.phone !== p)
+    setSessions(next)
+    saveSessions(next)
+    const store = loadStore()
+    delete store[p]
+    saveStore(store)
+    if (p === phone) changePhone(firstPhone)
   }
 
   const send = async (raw) => {
@@ -342,7 +391,7 @@ export default function Agente({ onLead, goToPipeline }) {
         {/* ── Rail: configuración + detrás del telón ────────────────────────── */}
         <div className="rail">
           <div className="card rail__card">
-            <div className="rail__title">teléfono_de_prueba</div>
+            <div className="rail__title">sesiones_de_prueba</div>
             <div className="phone-pills">
               {simConfig.testPhones.map((p) => (
                 <button
@@ -354,11 +403,20 @@ export default function Agente({ onLead, goToPipeline }) {
                   <span className="phone-pill__num">{p.phone}</span>
                 </button>
               ))}
+              {sessions.map((p) => (
+                <div key={p.phone} className={'phone-pill ' + (p.phone === phone ? 'is-active' : '')}>
+                  <button className="phone-pill__main" onClick={() => changePhone(p.phone)}>
+                    {p.label}
+                    <span className="phone-pill__num">{p.phone}</span>
+                  </button>
+                  <button className="phone-pill__del" onClick={() => borrarSesion(p.phone)} title="Borrar sesión">✕</button>
+                </div>
+              ))}
             </div>
+            <button className="nueva-prueba" onClick={nuevaPrueba}>+ Nueva prueba</button>
             <div className="rail__hint">
-              Solo estos números reciben respuesta (gate del flujo). Cada número es una
-              conversación de prueba independiente y su historial queda guardado — puedes cambiar
-              de número y regresar sin perder nada. ⟳ borra solo la conversación actual.
+              Cada sesión es una conversación aparte, con su propio lead en el Pipeline. Su historial
+              queda guardado — cambia entre ellas sin perder nada. ⟳ reinicia solo la actual.
             </div>
             <div className="rail__title" style={{ marginTop: 16 }}>nombre_de_prueba</div>
             <input
