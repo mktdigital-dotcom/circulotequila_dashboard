@@ -107,16 +107,18 @@ export function Funnel({ stages, showLeak = true }) {
   )
 }
 
-// Rendimiento por canal (Pregunta 3).
+// De dónde vienen los leads — por origen/campaña y por país (Pregunta 3).
 export function ChannelsCard({ live, period = 'mes' }) {
   const pm = usePanel(live)
   const chans = pm ? pm.channels : channelsStatic
+  const paises = pm ? pm.paises : []
   return (
     <div className="card">
       <div className="card__head">
         <span className="card__tag">Pregunta 3{pm ? ' · datos reales' : ''}</span>
-        <span className="card__q">Qué canales generan clientes</span>
+        <span className="card__q">De dónde vienen los leads</span>
       </div>
+      <div className="bars__lbl">Por origen / campaña</div>
       <div className="bars">
         {chans.map((c) => (
           <div key={c.name}>
@@ -131,8 +133,18 @@ export function ChannelsCard({ live, period = 'mes' }) {
           </div>
         ))}
       </div>
+      {pm && paises.length > 0 && (
+        <>
+          <div className="bars__lbl" style={{ marginTop: 18 }}>Por país</div>
+          <div className="lk-chips">
+            {paises.map(([pais, n]) => (
+              <span key={pais} className="lk-chip">{pais} <b>{n}</b></span>
+            ))}
+          </div>
+        </>
+      )}
       <p className="bar__meta" style={{ marginTop: 18, marginLeft: 0, lineHeight: 1.5 }}>
-        {pm ? 'Distribución real de leads por canal, con calidad según tier.' : channelsCaption}
+        {pm ? 'Distribución real de leads por origen (campaña Meta / web) y por país, con calidad según tier.' : channelsCaption}
       </p>
     </div>
   )

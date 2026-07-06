@@ -36,6 +36,46 @@ const ETAPA_TO_STAGE = {
   reactivacion: 'reactivacion',
 }
 
+// Origen real del lead (campaña) → etiqueta legible. Es "de dónde viene", no el
+// canal técnico (que casi siempre es whatsapp).
+const ORIGEN_LABEL = {
+  web_general: 'Web · general',
+  web_popup_empresarial: 'Web · empresarial',
+  campana_gdl: 'Meta · Guadalajara',
+  campana_cdmx: 'Meta · CDMX',
+  campana_rm: 'Meta · Riviera Maya',
+  campana_slp: 'Meta · SLP',
+}
+const ORIGEN_TONE = {
+  web_general: 'gold',
+  web_popup_empresarial: 'gold',
+  campana_gdl: 'green',
+  campana_cdmx: 'teal',
+  campana_rm: 'blue',
+  campana_slp: 'orange',
+}
+
+// País a partir del prefijo del teléfono (contacto). Cae a México por ciudad MX.
+const LADA_PAIS = [
+  ['+52', 'México'],
+  ['+1', 'EE.UU./Canadá'],
+  ['+505', 'Nicaragua'],
+  ['+506', 'Costa Rica'],
+  ['+507', 'Panamá'],
+  ['+57', 'Colombia'],
+  ['+51', 'Perú'],
+  ['+56', 'Chile'],
+  ['+54', 'Argentina'],
+  ['+34', 'España'],
+]
+const CIUDADES_MX = ['gdl', 'guadalajara', 'cdmx', 'riviera maya', 'slp', 'san luis potosi', 'monterrey', 'puerto vallarta', 'leon', 'queretaro']
+function paisDe(contacto, ciudad) {
+  const c = (contacto || '').toString().replace(/\s/g, '')
+  for (const [lada, pais] of LADA_PAIS) if (c.startsWith(lada)) return pais
+  if (CIUDADES_MX.includes(norm(ciudad))) return 'México'
+  return '—'
+}
+
 // estatus_mkt (§13, vocabulario de Kenia) → próximo toque sugerido.
 const ESTATUS_NEXT = {
   'en espera para enviar costos': 'Enviar lista de precios del canal',
@@ -105,6 +145,8 @@ export function mapLeadRowToCard(row) {
     canal: row.canal || '',
     linea: row.linea || '',
     campana: row['campaña'] || row.campana || '',
+    origen: ORIGEN_LABEL[(row['campaña'] || row.campana || '').toString()] || (row.canal || 'directo'),
+    pais: paisDe(row.contacto, row.ciudad),
     anuncio: row.anuncio || '',
     contacto: row.contacto || '',
     fecha: row.fecha || '',
@@ -224,25 +266,30 @@ export function panelModel(cards) {
     { key: 'won', label: 'Cerradas', value: won, dot: 'green', sub: 'producción y entrega', note: '' },
   ]
 
-  // ── Sección 3 · Rendimiento por canal ──
-  const canalMap = {}
+  // ── Sección 3 · De dónde vienen los leads — por ORIGEN (campaña) y por PAÍS ──
+  const origenMap = {}
+  const paisMap = {}
   for (const c of cards) {
-    const key = (c.canal || 'otro').toString().toLowerCase()
-    ;(canalMap[key] ||= { leads: 0, tierSum: 0, tierN: 0 })
-    canalMap[key].leads++
+    const campKey = (c.campana || '').toString()
+    const label = ORIGEN_LABEL[campKey] || (c.canal || 'Directo')
+    ;(origenMap[label] ||= { leads: 0, tierSum: 0, tierN: 0, tone: ORIGEN_TONE[campKey] || CANAL_TONE[(c.canal || '').toLowerCase()] || 'golddim' })
+    origenMap[label].leads++
     if (c.tier && TIER_VAL[c.tier]) {
-      canalMap[key].tierSum += TIER_VAL[c.tier]
-      canalMap[key].tierN++
+      origenMap[label].tierSum += TIER_VAL[c.tier]
+      origenMap[label].tierN++
     }
+    const pais = c.pais || '—'
+    paisMap[pais] = (paisMap[pais] || 0) + 1
   }
-  const channels = Object.entries(canalMap)
-    .map(([key, v]) => {
+  const channels = Object.entries(origenMap)
+    .map(([name, v]) => {
       const avg = v.tierN ? v.tierSum / v.tierN : 0
       const quality = avg >= 3.5 ? 'alta' : avg >= 2.5 ? 'media' : 'baja'
       const pct = Math.round((v.leads / (total || 1)) * 100)
-      return { name: CANAL_LABEL[key] || key, leads: v.leads, quality, pct, tone: CANAL_TONE[key] || 'blue' }
+      return { name, leads: v.leads, quality, pct, tone: v.tone }
     })
     .sort((a, b) => b.leads - a.leads)
+  const paises = Object.entries(paisMap).sort((a, b) => b[1] - a[1])
 
   // ── Sección 4 · Conversión comercial (handoff) ──
   const ganadas = won
@@ -276,7 +323,7 @@ export function panelModel(cards) {
   const weekLabels = Object.keys(weekMap).sort()
   const trend = { weekLabels, data: weekLabels.map((k) => weekMap[k]) }
 
-  return { funnel, channels, handoff: { total: handoffTotal, segments, lossReasons }, trend }
+  return { funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons }, trend }
 }
 
 const ENDPOINT = '/api/nocodb'
