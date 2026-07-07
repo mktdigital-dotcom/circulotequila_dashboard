@@ -137,7 +137,12 @@ function LeadDrawer({ card, onClose, onChange }) {
             <Field label="Volumen">{card.volumen ? card.volumen + ' bot' : '—'}</Field>
             <Field label="Ciudad">{card.ciudad || '—'}</Field>
             <Field label="Canal">{card.canal || '—'}</Field>
-            <Field label="Campaña">{card.campana || '—'}</Field>
+            <Field label="Origen / campaña">
+              {card.origen || card.campana || '—'}
+              {card.origenFuente === 'frase de apertura' && (
+                <span className="chip chip--soft" style={{ marginLeft: 6 }}>por frase</span>
+              )}
+            </Field>
             {card.anuncio && <Field label="Anuncio">{card.anuncio}</Field>}
             <Field label="Contacto">{card.contacto || '—'}</Field>
             <Field label="Fecha de entrada">{card.fecha || '—'}</Field>

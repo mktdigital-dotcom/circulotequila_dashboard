@@ -23,6 +23,42 @@ y los números reales de clientes siguen fuera del modo prueba.
 
 ---
 
+## Cambio 0.5 · Nodo **"Detección de Canal"** — atribución por FRASE DE APERTURA
+El anuncio es casi idéntico en todas las campañas; **solo cambia la frase inicial**,
+y esa frase identifica campaña + ciudad + línea. Es la fuente de atribución **base**
+(siempre disponible, aun sin CTWA). Reglas (normalizar: minúsculas, sin acentos,
+trim). Evaluar en ESTE orden para evitar colisiones:
+
+| Frase de apertura (normalizada) | campaña | ciudad | línea |
+|---|---|---|---|
+| contiene `informacion sobre edicion empresarial` | `web_popup_empresarial` | otro | empresarial |
+| contiene `informacion sobre circulo tequila` | `web_general` | otro | — |
+| empieza con `me encantaria recibir informacion` | `campana_slp` | SLP | empresarial |
+| empieza con `podrian darme informacion` | `campana_rm` | Riviera Maya | empresarial |
+| empieza con `me gustaria` + contiene `informacion` | `campana_cdmx` | CDMX | empresarial |
+| empieza con `quiero informacion` | `campana_gdl` | GDL | empresarial |
+
+> El orden importa: las dos de **web** se detectan por palabra clave (`edicion
+> empresarial` / `circulo tequila`) ANTES que las 4 de Meta, que se detectan por el
+> verbo inicial. Escribir también `fuente_señal = 'frase_apertura'`.
+> **Prioridad de verdad:** si existe `ctwa_clid`/referral de Meta (Cambio CTWA), ese
+> gana sobre la frase; la frase es el respaldo. El dashboard ya aplica esta misma
+> lógica como fallback cuando `campaña` viene vacío (marca "por frase").
+
+## Cambio CTWA (recomendado) · atribución exacta por `ctwa_clid`
+La frase se pierde si la clienta borra el texto pre-llenado. La forma **durable** es
+Click-to-WhatsApp nativo: cada clic genera un `ctwa_clid` que ManyChat captura y de
+ahí se deriva `ad_id → campaña + anuncio + métricas`. Ver SOP CTWA. Cuando esté
+montado (GATE 3 del SOP = la cuenta de anuncios aparece en el trigger):
+
+1. ManyChat: trigger "clic en anuncio CTWA" → Set Custom Field `ctwa_clid` + `ad_id`.
+2. El webhook a n8n incluye `referral` (adId / ctwaClid / headline).
+3. En "Detección de Canal": si hay `referral`, `fuente_señal = 'referral_meta'` y
+   `anuncio = headline || adId` (gana sobre la frase).
+4. Guardar `ctwa_clid` y `anuncio_id` en el lead → enlaza con la Marketing API.
+
+---
+
 ## Cambio 1 · Nodo **"Crear Lead"** (NocoDB create → tabla Leads)
 Agregar al mapeo de campos (junto a los existentes):
 

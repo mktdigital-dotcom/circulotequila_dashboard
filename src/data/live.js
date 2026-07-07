@@ -8,6 +8,7 @@
 // - Une Signal_log como línea de tiempo real por lead (§13: bitácora append-only).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { detectChannel } from './simLogic.js'
 
 const norm = (s) =>
   (s || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[_\s]+/g, ' ').trim()
@@ -189,12 +190,31 @@ function attachSignals(cards, signalRows) {
     const evs = (byLead[c.id] || []).sort((a, b) => (a.t < b.t ? -1 : 1))
     if (!evs.length) return c
     const lastTs = evs[evs.length - 1].t
-    return {
-      ...c,
-      events: evs,
-      ultima: relLabel(lastTs) !== '—' ? relLabel(lastTs) : c.ultima,
-      dias: daysSince(lastTs) ?? c.dias,
+    const enriched = { ...c, events: evs }
+    // Fallback de atribución: si NocoDB aún no trae `campaña`, deducirla de la
+    // FRASE DE APERTURA del primer mensaje del cliente (misma lógica que n8n).
+    // Fuente de verdad sigue siendo NocoDB; esto solo rellena mientras el flujo
+    // no escriba el campo. `origenFuente` deja claro de dónde salió.
+    if (!c.campana) {
+      const primero = evs.find((e) => /client|usuari|lead/i.test(e.actor || '') || (!/agente|sistema|bot/i.test(e.actor || '') && e.e))
+      const texto = (primero?.e || '').toString()
+      if (texto) {
+        const det = detectChannel(texto)
+        if (det.campana) {
+          enriched.campana = det.campana
+          enriched.origen = ORIGEN_LABEL[det.campana] || enriched.origen
+          enriched.origenFuente = 'frase de apertura'
+          if (det.anuncio && !enriched.anuncio) enriched.anuncio = det.anuncio
+          if (det.ciudad && !enriched.ciudad) enriched.ciudad = det.ciudad
+          if (det.linea && !enriched.linea) enriched.linea = det.linea
+        }
+      }
+    } else {
+      enriched.origenFuente = 'NocoDB'
     }
+    enriched.ultima = relLabel(lastTs) !== '—' ? relLabel(lastTs) : c.ultima
+    enriched.dias = daysSince(lastTs) ?? c.dias
+    return enriched
   })
 }
 
