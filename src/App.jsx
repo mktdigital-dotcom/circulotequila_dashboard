@@ -5,7 +5,6 @@ import Embudo from './sections/Embudo.jsx'
 import Leads from './sections/Leads.jsx'
 import Tendencias from './sections/Tendencias.jsx'
 import Agente from './sections/Agente.jsx'
-import Arquitectura from './sections/Arquitectura.jsx'
 
 const STORAGE_KEY = 'circulo.board.v3'
 
@@ -128,7 +127,6 @@ export default function App() {
       leads: { ph: 'Buscar lead, región u ocasión…', pill: livePill, btn: '+ Nuevo lead', arrow: false, action: addLead },
       tendencias: { ph: 'Buscar en tendencias…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
       agente: { ph: 'Probar un mensaje contra el SOP…', pill: 'agente · en línea', btn: 'Cargar SOP', arrow: true, action: () => window.open(agent.materials, '_blank', 'noopener') },
-      arquitectura: { ph: 'Buscar en la arquitectura…', pill: 'azxion · v.2026.06', btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
     }),
     [board, livePill],
   )
@@ -141,7 +139,6 @@ export default function App() {
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     tendencias: <Tendencias live={live} />,
     agente: <Agente onLead={upsertLead} goToPipeline={() => setSection('leads')} />,
-    arquitectura: <Arquitectura />,
   }
 
   return (

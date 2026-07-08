@@ -253,7 +253,6 @@ export const nav = [
   { n: '02', key: 'leads', label: 'Pipeline', live: true },
   { n: '03', key: 'tendencias', label: 'Tendencias y análisis', live: true },
   { n: '04', key: 'agente', label: 'Agente IA', live: true },
-  { n: '05', key: 'arquitectura', label: 'Arquitectura' },
 ]
 
 export const peso = (n) =>
