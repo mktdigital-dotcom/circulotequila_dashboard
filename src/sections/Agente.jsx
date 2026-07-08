@@ -308,9 +308,9 @@ export default function Agente({ onLead, goToPipeline }) {
     <section>
       <div className="section-head">
         <div>
-          <div className="eyebrow">Agente IA · simulador WhatsApp</div>
+          <div className="eyebrow">Agente IA</div>
           <h1 className="headline">
-            Así contesta <span className="gold">en WhatsApp.</span>
+            Simulador de <span className="gold">Agente de IA</span>
           </h1>
           <p className="subhead">
             Conectado al flujo real de n8n. Escribe como un prospecto y el agente responde con la
