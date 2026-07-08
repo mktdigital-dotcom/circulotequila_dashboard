@@ -73,16 +73,29 @@ async function callWebhook({ phone, text, name }) {
 
 // Construye un lead a partir de la conversación de prueba, con el mismo formato
 // que usa el Pipeline — para que el simulador se registre como un lead real.
+// ¿El cliente aceptó explícitamente avanzar al siguiente paso (agendar/llamada/
+// asesor/handoff)? Ese hito conductual = etapa "interesado", más allá del score.
+function aceptoAvanzar(messages) {
+  const t = (messages || [])
+    .filter((m) => m.who === 'user')
+    .map((m) => (m.text || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''))
+    .join(' ')
+  return /(agend|llamad|llamar|reunion|cita|asesor|vendedor|siguiente paso|avanzar|me interesa|si quiero|acepto|adelante|de acuerdo|hagamoslo|procede|contact)/.test(t)
+}
+
 function buildSimLead(phone, messages, det, sc, testName) {
+  const avanza = !sc?.gate && aceptoAvanzar(messages)
   const stage = sc?.gate
     ? 'reactivacion'
-    : sc?.tier === 'A'
+    : avanza
       ? 4
-      : sc?.tier === 'B'
-        ? 3
-        : messages.filter((m) => m.who === 'user').length >= 2
-          ? 2
-          : 1
+      : sc?.tier === 'A'
+        ? 4
+        : sc?.tier === 'B'
+          ? 3
+          : messages.filter((m) => m.who === 'user').length >= 2
+            ? 2
+            : 1
   const bottles = sc?.bottles ?? null
   const ciudad = det?.ciudad || '—'
   const campana = det?.campana || ''
@@ -114,7 +127,8 @@ function buildSimLead(phone, messages, det, sc, testName) {
     dias: 0,
     responsable: 'Agente IA · simulador',
     vendedor: stage >= 5 ? ciudad : null,
-    proximo: sc?.tier === 'A' ? 'Handoff a asesor de la ciudad' : 'Continuar la calificación',
+    proximo:
+      stage === 4 || sc?.tier === 'A' ? 'Handoff a asesor de la ciudad' : 'Continuar la calificación',
   }
 }
 
@@ -178,6 +192,13 @@ export default function Agente({ onLead, goToPipeline }) {
     [messages]
   )
   const sessionId = 'mc_' + phone
+
+  // Etiqueta de cada sesión: el NOMBRE de la prueba (testName) de esa sesión, no
+  // un genérico "Prueba N". La activa usa el nombre en vivo; las demás, el guardado.
+  const nombreDe = (ph, fallback) => {
+    const n = ph === phone ? testName : loadStore()[ph]?.testName
+    return (n && n.trim()) || fallback
+  }
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' })
@@ -399,14 +420,14 @@ export default function Agente({ onLead, goToPipeline }) {
                   className={'phone-pill ' + (p.phone === phone ? 'is-active' : '')}
                   onClick={() => changePhone(p.phone)}
                 >
-                  {p.label}
+                  {nombreDe(p.phone, p.label)}
                   <span className="phone-pill__num">{p.phone}</span>
                 </button>
               ))}
               {sessions.map((p) => (
                 <div key={p.phone} className={'phone-pill ' + (p.phone === phone ? 'is-active' : '')}>
                   <button className="phone-pill__main" onClick={() => changePhone(p.phone)}>
-                    {p.label}
+                    {nombreDe(p.phone, p.label)}
                     <span className="phone-pill__num">{p.phone}</span>
                   </button>
                   <button className="phone-pill__del" onClick={() => borrarSesion(p.phone)} title="Borrar sesión">✕</button>

@@ -77,13 +77,19 @@ Hoy solo escribe `score` y `tier`. Agregar:
 | `campaña` | `{{ $('Detección de Canal').item.json.deteccion.campana }}` |
 | `anuncio` | `{{ $('Detección de Canal').item.json.deteccion.anuncio }}` |
 | `ciudad` | `{{ $('Detección de Canal').item.json.deteccion.ciudadParaLead }}` |
-| `etapa` | `{{ $('Motor de Score').item.json.gate ? 'perdido' : ($('Motor de Score').item.json.tier === 'A' ? 'interesado' : ($('Motor de Score').item.json.tier === 'B' ? 'calificado' : 'en_conversacion')) }}` |
+| `etapa` | `{{ $('Motor de Score').item.json.gate ? 'perdido' : ( /(agend|llamad|llamar|reunion|cita|asesor|vendedor|siguiente paso|avanzar|me interesa|acepto|adelante|de acuerdo|procede|contact)/i.test($('Combine content and set properties').item.json.CombinedMessage || '') ? 'interesado' : ($('Motor de Score').item.json.tier === 'A' ? 'interesado' : ($('Motor de Score').item.json.tier === 'B' ? 'calificado' : 'en_conversacion'))) }}` |
 | `contexto` | `{{ ($('Detección de Canal').item.json.deteccion.ciudad || 'ciudad s/confirmar') + ($('Motor de Score').item.json.bottles ? ' · ' + $('Motor de Score').item.json.bottles + ' bot' : '') + ' · tier ' + $('Motor de Score').item.json.tier + ' (' + $('Motor de Score').item.json.score + ')' + ' · último: ' + ($('Combine content and set properties').item.json.CombinedMessage || '').slice(0, 140) }}` |
 | `requalify_at` | `{{ $('Motor de Score').item.json.gate ? $now.plus({ days: 90 }).toFormat('yyyy-LL-dd') : '' }}` |
 
 > `contexto` v1 es un resumen determinista (ciudad · botellas · tier/score · último
 > mensaje). Si luego se quiere un resumen redactado por el LLM, se agrega un nodo
 > LLM barato entre "Motor de Score" y "Actualizar Lead" — pero esto ya cumple.
+
+> **`etapa` = "interesado" por HITO CONDUCTUAL, no solo por tier.** Cuando el cliente
+> acepta explícitamente avanzar (agendar llamada, pasar con asesor, "acepto",
+> "adelante"…), la etapa sube a `interesado` aunque el score aún no sea tier A. Esto
+> arregla el caso "acepté el siguiente paso pero seguía en conversación". El
+> dashboard/simulador ya aplica la misma regla.
 
 ## Cambio 3 · NUEVO nodo **"Log Respuesta"** (NocoDB create → tabla Mensajes)
 Hoy solo se guarda el mensaje del cliente ("Log Mensaje"). Falta guardar lo que
