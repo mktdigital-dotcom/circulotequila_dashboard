@@ -2211,17 +2211,6 @@ select.d-input { cursor: pointer; }
   outline: none;
 }
 .d-textarea:focus { border-color: rgba(233, 182, 93, 0.5); }
-.sim-notas { margin-top: 18px; }
-.sim-notas__form {
-  display: grid;
-  grid-template-columns: 220px 1fr auto;
-  gap: 10px;
-  align-items: start;
-}
-.sim-notas__form .btn-export { height: 40px; align-self: stretch; }
-@media (max-width: 720px) {
-  .sim-notas__form { grid-template-columns: 1fr; }
-}
 .ktag__x {
   margin-left: 4px;
   color: inherit;

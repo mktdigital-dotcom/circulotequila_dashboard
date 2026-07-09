@@ -491,6 +491,41 @@ export default function Agente({ onLead, goToPipeline }) {
               Va en el payload como en ManyChat (first_name / name) y será el nombre del lead en el
               Pipeline.
             </div>
+
+            <div className="rail__title" style={{ marginTop: 16 }}>notas_de_la_prueba</div>
+            <div className="rail__hint" style={{ marginTop: 0, marginBottom: 8 }}>
+              Qué funcionó y qué no en <b>{testName || 'esta prueba'}</b>. Se guardan en la base —
+              Kenia y tú las ven desde cualquier navegador.
+            </div>
+            <input
+              className="d-input"
+              value={autorNota}
+              onChange={(e) => setAutorNota(e.target.value)}
+              placeholder="Tu nombre (Libia / Kenia)…"
+              style={{ marginBottom: 6 }}
+            />
+            <textarea
+              className="d-textarea"
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="¿Qué funcionó y qué no en la conversación?"
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); guardarNota() } }}
+            />
+            <button className="btn-export" style={{ height: 34, fontSize: 12, marginTop: 6, width: '100%' }} onClick={guardarNota} disabled={savingNota}>
+              {savingNota ? 'Guardando…' : 'Guardar nota'}
+            </button>
+            {notaErr && <div className="rail__hint" style={{ color: 'var(--red)', marginTop: 6 }}>{notaErr}</div>}
+            <div className="notes" style={{ marginTop: 10 }}>
+              {notas.length === 0 && <div className="muted" style={{ fontSize: 12 }}>Sin notas todavía.</div>}
+              {notas.map((nt, i) => (
+                <div className="note" key={i}>
+                  <div className="note__body">
+                    <span className="note__t">{nt.autor} · {nt.ts}</span>
+                    <p>{nt.texto}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="card rail__card">
@@ -587,48 +622,6 @@ export default function Agente({ onLead, goToPipeline }) {
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* ── Notas de la prueba (debajo del simulador, ancho completo) ────────── */}
-      <div className="card card--pad-lg sim-notas">
-        <div className="card__head">
-          <span className="card__tag">Notas de la prueba · compartidas</span>
-          <span className="card__q">Qué funcionó y qué no en <b>{testName || 'esta prueba'}</b></span>
-        </div>
-        <div className="rail__hint" style={{ marginTop: 0, marginBottom: 10 }}>
-          Se guardan en la base — Kenia y tú las ven desde cualquier navegador. Cada prueba
-          tiene sus propias notas.
-        </div>
-        <div className="sim-notas__form">
-          <input
-            className="d-input"
-            value={autorNota}
-            onChange={(e) => setAutorNota(e.target.value)}
-            placeholder="Tu nombre (Libia / Kenia)…"
-          />
-          <textarea
-            className="d-textarea"
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
-            placeholder="¿Qué funcionó y qué no en la conversación?"
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); guardarNota() } }}
-          />
-          <button className="btn-export" onClick={guardarNota} disabled={savingNota}>
-            {savingNota ? 'Guardando…' : 'Guardar nota'}
-          </button>
-        </div>
-        {notaErr && <div className="rail__hint" style={{ color: 'var(--red)', marginTop: 8 }}>{notaErr}</div>}
-        <div className="notes" style={{ marginTop: 14 }}>
-          {notas.length === 0 && <div className="muted" style={{ fontSize: 12 }}>Sin notas todavía. Documenta aquí qué funcionó y qué no.</div>}
-          {notas.map((nt, i) => (
-            <div className="note" key={i}>
-              <div className="note__body">
-                <span className="note__t">{nt.autor} · {nt.ts}</span>
-                <p>{nt.texto}</p>
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </section>
