@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { stages, stageAccents, reactivationStage, pesoCompact } from '../data/circulo.js'
-import { postNota } from '../data/live.js'
+import { postNota, patchLead, cardPatchToNoco, etapaDeStage } from '../data/live.js'
 
 const stageLabel = (n) => stages.find((s) => s.n === n)?.label || '—'
 const accentOf = (n) => (n === 'reactivacion' ? '#e2795c' : stageAccents[n] || '#e9b65d')
@@ -44,6 +44,8 @@ function LeadDrawer({ card, onClose, onChange }) {
   })
   const [savingNota, setSavingNota] = useState(false)
   const [notaErr, setNotaErr] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editErr, setEditErr] = useState('')
   if (!card) return null
   const set = (patch) => onChange(patch)
   const accent = accentOf(card.stage)
@@ -67,6 +69,25 @@ function LeadDrawer({ card, onClose, onChange }) {
     if (!t) return
     set({ tags: [...(card.tags || []), t] })
     setTagInput('')
+  }
+  // Al salir de edición, guarda los cambios en NocoDB → compartido y persistente
+  // (si no, el polling los revertiría). Solo si el lead ya existe en la base.
+  const toggleEditing = async () => {
+    if (editing && card.ncId != null) {
+      setSavingEdit(true)
+      setEditErr('')
+      try {
+        await patchLead(card.ncId, cardPatchToNoco({
+          stage: card.stage, name: card.name, ciudad: card.ciudad,
+          volumen: card.volumen, proposito: card.proposito, linea: card.linea,
+        }))
+      } catch (e) {
+        setEditErr('No se guardó en la base: ' + (e.message || e))
+      } finally {
+        setSavingEdit(false)
+      }
+    }
+    setEditing((e) => !e)
   }
   // Nota COMPARTIDA: se guarda en NocoDB (tabla Notas) para que Libia y Kenia
   // la vean desde cualquier navegador. Optimista: aparece al instante y el
@@ -106,8 +127,8 @@ function LeadDrawer({ card, onClose, onChange }) {
             </span>
           )}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className={'edit-btn' + (editing ? ' is-on' : '')} onClick={() => setEditing((e) => !e)}>
-              {editing ? '✓ Listo' : 'Editar'}
+            <button className={'edit-btn' + (editing ? ' is-on' : '')} onClick={toggleEditing} disabled={savingEdit}>
+              {savingEdit ? 'Guardando…' : editing ? '✓ Listo' : 'Editar'}
             </button>
             <button className="drawer__close" onClick={onClose} aria-label="Cerrar">✕</button>
           </div>
@@ -122,6 +143,7 @@ function LeadDrawer({ card, onClose, onChange }) {
           {card.empresa && card.empresa !== card.name ? card.empresa + ' · ' : ''}
           {card.ciudad} · <span className="lead-id">{card.id}</span>
         </div>
+        {editErr && <div className="muted" style={{ fontSize: 11, color: 'var(--red)' }}>{editErr}</div>}
         <div className="drawer__value" style={{ color: accent }}>
           {editing ? (
             <span className="d-inline"><In v={card.value} set={(v) => set({ value: v })} type="number" /> MXN</span>
@@ -341,6 +363,10 @@ export default function Leads({ board, setBoard, query = '' }) {
     dragId.current = null
     if (!id) return
     setBoard((prev) => prev.map((c) => (c.id === id ? { ...c, stage: stageN } : c)))
+    // Escribe la etapa en NocoDB para que el movimiento sea compartido y no se
+    // revierta en el siguiente polling. Solo si el lead ya existe en la base.
+    const c = board.find((x) => x.id === id)
+    if (c?.ncId != null) patchLead(c.ncId, { etapa: etapaDeStage(stageN) }).catch(() => {})
   }
   const onClickCard = (id) => {
     if (draggedRef.current) { draggedRef.current = false; return }

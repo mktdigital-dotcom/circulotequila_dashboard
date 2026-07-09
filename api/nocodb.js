@@ -51,13 +51,14 @@ async function getNotasTableId() {
   return _notasTableId
 }
 
-async function ncCreate(tableId, fields) {
+async function ncWrite(method, tableId, body) {
   const url = `${HOST}/api/v2/tables/${tableId}/records`
-  const opts = (h) => ({ method: 'POST', headers: { ...h, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(fields) })
+  const opts = (h) => ({ method, headers: { ...h, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(body) })
   let res = await fetch(url, opts({ 'xc-token': TOKEN }))
   if (res.status === 401) res = await fetch(url, opts({ authorization: `Bearer ${TOKEN}` }))
   return res
 }
+const ncCreate = (tableId, fields) => ncWrite('POST', tableId, fields)
 
 async function fetchAll(tableId) {
   const rows = []
@@ -141,6 +142,30 @@ export default async function handler(req, res) {
       const txt = await r.text()
       if (!r.ok) { res.status(502).json({ error: 'No se pudo guardar la nota', detail: txt.slice(0, 300) }); return }
       res.status(200).json({ ok: true, nota: JSON.parse(txt) })
+    } catch (e) {
+      res.status(502).json({ error: String(e.message || e) })
+    }
+    return
+  }
+
+  // Edición compartida: actualizar un lead por su Id de NocoDB. Así lo que edita
+  // o mueve una persona en el dashboard queda en la base y todos lo ven.
+  // PATCH /api/nocodb?resource=leads  body: { Id, ...campos }
+  if (req.method === 'PATCH' || (req.method === 'POST' && (req.query?.op || '') === 'update')) {
+    if (resource !== 'leads') {
+      res.status(400).json({ error: 'Solo se puede editar "leads".' })
+      return
+    }
+    let body = req.body
+    if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = {} } }
+    const id = body?.Id ?? body?.id
+    if (id == null) { res.status(400).json({ error: 'Falta el Id del lead.' }); return }
+    const { Id, id: _omit, ...fields } = body
+    try {
+      const r = await ncWrite('PATCH', TABLES.leads, { Id: id, ...fields })
+      const txt = await r.text()
+      if (!r.ok) { res.status(502).json({ error: 'No se pudo actualizar el lead', detail: txt.slice(0, 300) }); return }
+      res.status(200).json({ ok: true, lead: JSON.parse(txt) })
     } catch (e) {
       res.status(502).json({ error: String(e.message || e) })
     }

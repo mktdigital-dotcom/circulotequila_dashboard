@@ -37,6 +37,23 @@ const ETAPA_TO_STAGE = {
   reactivacion: 'reactivacion',
 }
 
+// nº de etapa (o 'reactivacion') → etapa (texto que guarda NocoDB). Para que al
+// mover una tarjeta en el Pipeline se escriba la etapa correcta en la base.
+const STAGE_TO_ETAPA = {
+  1: 'nuevo',
+  2: 'en_conversacion',
+  3: 'calificado',
+  4: 'interesado',
+  5: 'transferido',
+  6: 'propuesta',
+  7: 'anticipo',
+  8: 'brief',
+  9: 'diseno',
+  10: 'produccion',
+  reactivacion: 'perdido',
+}
+export const etapaDeStage = (stage) => STAGE_TO_ETAPA[stage] || 'nuevo'
+
 // Origen real del lead (campaña) → etiqueta legible. Es "de dónde viene", no el
 // canal técnico (que casi siempre es whatsapp).
 const ORIGEN_LABEL = {
@@ -397,6 +414,33 @@ async function getResource(resource) {
   }
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
   return data
+}
+
+// Actualiza un lead en NocoDB (edición/movimiento compartido en el dashboard).
+// `ncId` es el Id interno de NocoDB (card.ncId). `fields` = columnas de Leads.
+export async function patchLead(ncId, fields) {
+  if (ncId == null) throw new Error('Este lead aún no existe en NocoDB (sin Id).')
+  const res = await fetch(`${ENDPOINT}?resource=leads`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ Id: ncId, ...fields }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
+}
+
+// Traduce un patch de tarjeta (campos del dashboard) a columnas de NocoDB.
+export function cardPatchToNoco(patch) {
+  const f = {}
+  if ('stage' in patch) f.etapa = etapaDeStage(patch.stage)
+  if ('name' in patch) f.nombre = patch.name
+  if ('ciudad' in patch) f.ciudad = patch.ciudad
+  if ('volumen' in patch) f.botellas = patch.volumen ?? ''
+  if ('proposito' in patch) f['propósito'] = patch.proposito
+  if ('linea' in patch) f.linea = patch.linea
+  if ('estatusMkt' in patch) f.estatus = patch.estatusMkt
+  return f
 }
 
 // Guarda una nota de prueba en NocoDB (tabla Notas) — compartida entre todos.
