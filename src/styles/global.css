@@ -1358,6 +1358,24 @@ a {
   gap: 18px;
   align-items: start;
 }
+/* Columna central: el chat arriba y las notas de la prueba justo debajo,
+   llenando el espacio del centro (no en el rail, no ancho completo). */
+.sim-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.sim-notas__form {
+  display: grid;
+  grid-template-columns: 200px 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+.sim-notas__form .btn-export { height: 40px; align-self: stretch; }
+@media (max-width: 720px) {
+  .sim-notas__form { grid-template-columns: 1fr; }
+}
 .chat {
   display: flex;
   flex-direction: column;
