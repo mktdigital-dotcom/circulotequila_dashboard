@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { brand, nav, kanbanCards, leadContext, agent } from './data/circulo.js'
+import { brand, nav, agent } from './data/circulo.js'
 import { useLiveLeads } from './data/live.js'
 import Embudo from './sections/Embudo.jsx'
 import Leads from './sections/Leads.jsx'
 import Tendencias from './sections/Tendencias.jsx'
 import Agente from './sections/Agente.jsx'
 
-const STORAGE_KEY = 'circulo.board.v3'
+const STORAGE_KEY = 'circulo.board.v4'
 
-// Cada lead es la fuente de verdad: posición + contexto + notas, todo junto y
-// persistido. Se siembra fusionando las tarjetas con su contexto que viaja.
+// El Pipeline se alimenta SOLO de NocoDB (leads reales + de prueba) y de la vista
+// previa del simulador. Sin tarjetas demo: lo que se ve es lo que está guardado.
 function buildInitial() {
-  return kanbanCards.map((c) => ({ ...(leadContext[c.id] || {}), ...c, notes: [] }))
+  return []
 }
 
 function loadBoard() {

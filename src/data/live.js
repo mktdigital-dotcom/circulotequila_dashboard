@@ -92,10 +92,18 @@ const VENDEDOR_CIUDAD = { GDL: 'Vendedor GDL', CDMX: 'Vendedor CDMX', 'Riviera M
 const PRECIO_BOTELLA = 2250 // estimación de valor (línea empresarial 750 ml)
 
 // Solo son leads reales las filas con lead_id tipo "L-0001" (filtra vacías y notas).
+// Un lead cuenta si su lead_id es un folio L-#### (leads "de negocio") O una
+// sesión del webhook/simulador `mc_<telefono>` (así el Pipeline muestra la MISMA
+// fila que NocoDB guarda, no una copia local). Filtra encabezados/notas vacías.
 const LEAD_ID_RE = /^L-?\d{1,6}$/i
-export const isRealLead = (row) => LEAD_ID_RE.test((row?.lead_id || '').toString().trim())
-// Señales reales: su lead_id apunta a un lead L-#### (filtra encabezado/notas).
-export const isRealSignal = (row) => LEAD_ID_RE.test((row?.lead_id || '').toString().trim())
+const SESSION_ID_RE = /^mc_/i
+const idDe = (row) => (row?.lead_id || '').toString().trim()
+export const isRealLead = (row) => LEAD_ID_RE.test(idDe(row)) || SESSION_ID_RE.test(idDe(row))
+export const isRealSignal = (row) => LEAD_ID_RE.test(idDe(row)) || SESSION_ID_RE.test(idDe(row))
+// Teléfonos de prueba (3 fijos + sintéticos +521555 de "Nueva prueba"): marcan
+// el lead como 🧪 sin sacarlo de NocoDB.
+const TEST_PHONE_RE = /521555\d|6682217601|6682322911|2345678901/
+export const esLeadDePrueba = (leadId) => TEST_PHONE_RE.test((leadId || '').toString())
 
 function daysSince(dateStr) {
   if (!dateStr) return null
@@ -122,16 +130,21 @@ export function mapLeadRowToCard(row) {
   const estatus = (row.estatus_mkt || '').toString().trim()
   const owner = (row.owner || '').toString().trim()
 
+  const leadId = (row.lead_id || '').toString().trim()
+  const esPrueba = esLeadDePrueba(leadId)
+
   const tags = []
+  if (esPrueba) tags.push('prueba')
   if (tier) tags.push('tier ' + tier)
   if (row.linea) tags.push(row.linea)
   if (stage === 'reactivacion') tags.push('reactivación')
 
   return {
-    id: (row.lead_id || '').toString().trim(),
+    id: leadId,
+    esPrueba,
     ncId: row.Id ?? null,
     stage,
-    name: row.nombre || row.lead_id || 'Lead sin nombre',
+    name: (row.nombre || row.lead_id || 'Lead sin nombre') + (esPrueba ? ' 🧪' : ''),
     empresa: row.nombre || '',
     ciudad,
     bot: bot != null ? bot + ' bot' : '— bot',

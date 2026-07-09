@@ -100,7 +100,11 @@ function buildSimLead(phone, messages, det, sc, testName) {
   const ciudad = det?.ciudad || '—'
   const campana = det?.campana || ''
   return {
-    id: 'SIM-' + phone.replace(/\D/g, '').slice(-4),
+    // MISMO id que el lead que el webhook guarda en NocoDB (lead_id = mc_<tel>),
+    // para que la vista previa local y la fila real de NocoDB sean UNA sola tarjeta:
+    // el preview aparece al instante y NocoDB (etapa/score reales) lo reemplaza al
+    // siguiente polling. Sin duplicados.
+    id: 'mc_' + phone,
     esPrueba: true,
     stage,
     name: (testName || 'Prueba') + ' 🧪',
