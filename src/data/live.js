@@ -231,6 +231,25 @@ function attachSignals(cards, signalRows) {
   })
 }
 
+// Une las notas de prueba (tabla Notas, compartidas) a cada lead por lead_id.
+function attachNotas(cards, notaRows) {
+  const byLead = {}
+  for (const n of notaRows) {
+    const lid = (n.lead_id || '').toString().trim()
+    if (!lid) continue
+    ;(byLead[lid] ||= []).push({
+      autor: (n.autor || 'anónimo').toString(),
+      texto: (n.texto || '').toString(),
+      ts: (n.ts || '').toString(),
+    })
+  }
+  return cards.map((c) => {
+    const ns = byLead[c.id]
+    if (!ns) return c
+    return { ...c, notasLive: ns.sort((a, b) => (a.ts < b.ts ? -1 : 1)) }
+  })
+}
+
 // KPIs derivados de los leads reales (Panel · Resumen del embudo).
 export function leadsKpis(cards) {
   const total = cards.length
@@ -380,6 +399,18 @@ async function getResource(resource) {
   return data
 }
 
+// Guarda una nota de prueba en NocoDB (tabla Notas) — compartida entre todos.
+export async function postNota({ leadId, autor, texto }) {
+  const res = await fetch(`${ENDPOINT}?resource=notas`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    body: JSON.stringify({ lead_id: leadId, autor, texto }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data
+}
+
 // Hook principal: leads + señales unidos, con polling (tiempo real).
 export function useLiveLeads({ pollMs = 30000 } = {}) {
   const [leads, setLeads] = useState(null)
@@ -390,13 +421,15 @@ export function useLiveLeads({ pollMs = 30000 } = {}) {
 
   const refresh = useCallback(async () => {
     try {
-      const [leadsData, signalsData] = await Promise.all([
+      const [leadsData, signalsData, notasData] = await Promise.all([
         getResource('leads'),
         getResource('signals').catch(() => ({ list: [] })),
+        getResource('notas').catch(() => ({ list: [] })),
       ])
       if (!alive.current) return
       const cards = (leadsData.list || []).filter(isRealLead).map(mapLeadRowToCard)
-      const enriched = attachSignals(cards, signalsData.list || [])
+      const withSignals = attachSignals(cards, signalsData.list || [])
+      const enriched = attachNotas(withSignals, notasData.list || [])
       setLeads(enriched)
       setError('')
       setLastUpdated(leadsData.fetchedAt || new Date().toISOString())

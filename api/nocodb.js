@@ -35,6 +35,30 @@ const TABLES = {
   senales: 'mqbezsfl3302vl5', // Señales
 }
 
+// Notas de prueba (compartidas entre Libia y Kenia): tabla "Notas" en la misma
+// base. Se resuelve por NOMBRE para no tener que copiar el id — basta con crear
+// en NocoDB una tabla llamada "Notas" con columnas: lead_id, autor, texto, ts.
+const BASE_ID = process.env.NOCODB_BASE || 'ppqrrdcbc6zxi9h'
+let _notasTableId = process.env.NOCODB_NOTAS_TABLE || null
+async function getNotasTableId() {
+  if (_notasTableId) return _notasTableId
+  const res = await ncFetch(`${HOST}/api/v2/meta/bases/${BASE_ID}/tables`)
+  if (!res.ok) throw new Error(`No se pudo listar tablas (${res.status})`)
+  const data = await res.json()
+  const t = (data.list || []).find((x) => /^notas?$/i.test((x.title || '').toString().trim()))
+  if (!t) throw new Error('Falta la tabla "Notas" en NocoDB. Créala con columnas: lead_id, autor, texto, ts.')
+  _notasTableId = t.id
+  return _notasTableId
+}
+
+async function ncCreate(tableId, fields) {
+  const url = `${HOST}/api/v2/tables/${tableId}/records`
+  const opts = (h) => ({ method: 'POST', headers: { ...h, 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify(fields) })
+  let res = await fetch(url, opts({ 'xc-token': TOKEN }))
+  if (res.status === 401) res = await fetch(url, opts({ authorization: `Bearer ${TOKEN}` }))
+  return res
+}
+
 async function fetchAll(tableId) {
   const rows = []
   let page = 1
@@ -92,9 +116,44 @@ export default async function handler(req, res) {
     return
   }
   const resource = (req.query?.resource || 'leads').toString()
-  const tableId = TABLES[resource]
+
+  // Escritura: crear una nota de prueba (compartida). POST /api/nocodb?resource=notas
+  if (req.method === 'POST') {
+    if (resource !== 'notas') {
+      res.status(400).json({ error: 'Solo se puede escribir en "notas".' })
+      return
+    }
+    let body = req.body
+    if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = {} } }
+    const fields = {
+      lead_id: (body?.lead_id || '').toString().trim(),
+      autor: (body?.autor || '').toString().trim() || 'anónimo',
+      texto: (body?.texto || '').toString().trim(),
+      ts: (body?.ts || '').toString().trim() || new Date().toISOString().slice(0, 16).replace('T', ' '),
+    }
+    if (!fields.lead_id || !fields.texto) {
+      res.status(400).json({ error: 'Faltan lead_id o texto.' })
+      return
+    }
+    try {
+      const tid = await getNotasTableId()
+      const r = await ncCreate(tid, fields)
+      const txt = await r.text()
+      if (!r.ok) { res.status(502).json({ error: 'No se pudo guardar la nota', detail: txt.slice(0, 300) }); return }
+      res.status(200).json({ ok: true, nota: JSON.parse(txt) })
+    } catch (e) {
+      res.status(502).json({ error: String(e.message || e) })
+    }
+    return
+  }
+
+  // Lectura. `notas` resuelve su tabla por nombre; si aún no existe, lista vacía.
+  let tableId = TABLES[resource]
+  if (resource === 'notas') {
+    try { tableId = await getNotasTableId() } catch { res.status(200).json({ resource, count: 0, list: [], nota: 'tabla Notas no creada' }); return }
+  }
   if (!tableId) {
-    res.status(400).json({ error: `Recurso desconocido: ${resource}`, disponibles: Object.keys(TABLES) })
+    res.status(400).json({ error: `Recurso desconocido: ${resource}`, disponibles: [...Object.keys(TABLES), 'notas'] })
     return
   }
   try {
