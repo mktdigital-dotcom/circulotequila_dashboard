@@ -443,6 +443,16 @@ export function cardPatchToNoco(patch) {
   return f
 }
 
+// Lee las notas de un lead/prueba (por lead_id) desde NocoDB — compartidas.
+export async function fetchNotas(leadId) {
+  const data = await getResource('notas').catch(() => ({ list: [] }))
+  const all = data.list || []
+  const rows = leadId ? all.filter((n) => (n.lead_id || '').toString().trim() === leadId) : all
+  return rows
+    .map((n) => ({ autor: (n.autor || 'anónimo').toString(), texto: (n.texto || '').toString(), ts: (n.ts || '').toString() }))
+    .sort((a, b) => (a.ts < b.ts ? -1 : 1))
+}
+
 // Guarda una nota de prueba en NocoDB (tabla Notas) — compartida entre todos.
 export async function postNota({ leadId, autor, texto }) {
   const res = await fetch(`${ENDPOINT}?resource=notas`, {

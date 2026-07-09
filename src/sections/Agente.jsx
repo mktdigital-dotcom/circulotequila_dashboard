@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { simConfig, WEBHOOK_URL, WEBHOOK_PATH_DEV } from '../data/circulo.js'
 import { detectChannel, scoreLead, TIER_INFO } from '../data/simLogic.js'
+import { fetchNotas, postNota } from '../data/live.js'
 
 const now = () =>
   new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -183,12 +184,48 @@ export default function Agente({ onLead, goToPipeline }) {
   const [signalLog, setSignalLog] = useState(() => loadStore()[firstPhone]?.signalLog || [])
   const scroller = useRef(null)
 
+  // Notas de la prueba (compartidas · NocoDB, por lead_id = mc_<tel>): qué funcionó
+  // y qué no. Kenia y Libia las ven desde cualquier navegador.
+  const [notas, setNotas] = useState([])
+  const [nota, setNota] = useState('')
+  const [autorNota, setAutorNota] = useState(() => {
+    try { return localStorage.getItem('circulo.autor') || '' } catch { return '' }
+  })
+  const [savingNota, setSavingNota] = useState(false)
+  const [notaErr, setNotaErr] = useState('')
+
   // Persiste la sesión del teléfono activo en cada cambio.
   useEffect(() => {
     const s = loadStore()
     s[phone] = { messages, deteccion, score, signalLog, testName }
     saveStore(s)
   }, [phone, messages, deteccion, score, signalLog, testName])
+
+  // Carga las notas compartidas de la sesión activa (y al cambiar de teléfono).
+  useEffect(() => {
+    let alive = true
+    setNotas([])
+    fetchNotas('mc_' + phone).then((rows) => { if (alive) setNotas(rows) }).catch(() => {})
+    return () => { alive = false }
+  }, [phone])
+
+  const guardarNota = async () => {
+    const t = nota.trim()
+    if (!t || savingNota) return
+    const who = autorNota.trim() || 'anónimo'
+    try { localStorage.setItem('circulo.autor', who) } catch {}
+    setSavingNota(true)
+    setNotaErr('')
+    try {
+      await postNota({ leadId: 'mc_' + phone, autor: who, texto: t })
+      setNotas((prev) => [...prev, { autor: who, texto: t, ts: new Date().toISOString().slice(0, 16).replace('T', ' ') }])
+      setNota('')
+    } catch (e) {
+      setNotaErr(String(e.message || e))
+    } finally {
+      setSavingNota(false)
+    }
+  }
 
   // Todo el texto que ha escrito el cliente en esta sesión (para el Motor de Score).
   const userText = useMemo(
@@ -453,6 +490,43 @@ export default function Agente({ onLead, goToPipeline }) {
             <div className="rail__hint">
               Va en el payload como en ManyChat (first_name / name) y será el nombre del lead en el
               Pipeline.
+            </div>
+          </div>
+
+          <div className="card rail__card">
+            <div className="rail__title">notas_de_la_prueba</div>
+            <div className="rail__hint" style={{ marginTop: 0, marginBottom: 8 }}>
+              Documenta qué funcionó y qué no en <b>{testName || 'esta prueba'}</b>. Se guarda
+              compartido — Kenia y tú lo ven desde cualquier navegador.
+            </div>
+            <input
+              className="d-input"
+              value={autorNota}
+              onChange={(e) => setAutorNota(e.target.value)}
+              placeholder="Tu nombre (Libia / Kenia)…"
+              style={{ marginBottom: 6 }}
+            />
+            <textarea
+              className="d-textarea"
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              placeholder="¿Qué funcionó y qué no en la conversación?"
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); guardarNota() } }}
+            />
+            <button className="btn-export" style={{ height: 34, fontSize: 12, marginTop: 6 }} onClick={guardarNota} disabled={savingNota}>
+              {savingNota ? 'Guardando…' : 'Guardar nota'}
+            </button>
+            {notaErr && <div className="rail__hint" style={{ color: 'var(--red)', marginTop: 6 }}>{notaErr}</div>}
+            <div className="notes" style={{ marginTop: 10 }}>
+              {notas.length === 0 && <div className="muted" style={{ fontSize: 12 }}>Sin notas todavía.</div>}
+              {notas.map((nt, i) => (
+                <div className="note" key={i}>
+                  <div className="note__body">
+                    <span className="note__t">{nt.autor} · {nt.ts}</span>
+                    <p>{nt.texto}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
