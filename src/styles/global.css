@@ -2229,6 +2229,25 @@ select.d-input { cursor: pointer; }
   outline: none;
 }
 .d-textarea:focus { border-color: rgba(233, 182, 93, 0.5); }
+.authgate {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, #0d0d0f);
+  padding: 20px;
+}
+.authgate__box {
+  width: 100%;
+  max-width: 340px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 28px 24px;
+}
+.authgate__title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+.authgate__sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 .ktag__x {
   margin-left: 4px;
   color: inherit;

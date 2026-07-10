@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { brand, nav, agent } from './data/circulo.js'
-import { useLiveLeads } from './data/live.js'
+import { useLiveLeads, setAppKey } from './data/live.js'
 import Embudo from './sections/Embudo.jsx'
 import Leads from './sections/Leads.jsx'
 import Tendencias from './sections/Tendencias.jsx'
@@ -62,6 +62,7 @@ export default function App() {
   const [period, setPeriod] = useState('mes')
   const [query, setQuery] = useState('')
   const [board, setBoard] = useState(loadBoard)
+  const [keyInput, setKeyInput] = useState('')
   const searchRef = useRef(null)
 
   // Datos en vivo desde NocoDB (vía /api/nocodb). Polling = tiempo real.
@@ -139,6 +140,30 @@ export default function App() {
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     tendencias: <Tendencias live={live} />,
     agente: <Agente onLead={upsertLead} goToPipeline={() => setSection('leads')} />,
+  }
+
+  // Candado del dashboard: solo aparece si el proxy responde 401 (o sea, cuando
+  // el dueño configuró DASHBOARD_TOKEN en Vercel). Antes de eso, invisible.
+  if (liveError === 'UNAUTHORIZED') {
+    const entrar = () => { setAppKey(keyInput); window.location.reload() }
+    return (
+      <div className="authgate">
+        <div className="authgate__box">
+          <div className="authgate__title">Círculo · acceso restringido</div>
+          <p className="authgate__sub">Ingresa la clave del dashboard para continuar.</p>
+          <input
+            className="d-input"
+            type="password"
+            value={keyInput}
+            onChange={(e) => setKeyInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && entrar()}
+            placeholder="Clave de acceso"
+            autoFocus
+          />
+          <button className="btn-export" style={{ marginTop: 10, width: '100%' }} onClick={entrar}>Entrar</button>
+        </div>
+      </div>
+    )
   }
 
   return (

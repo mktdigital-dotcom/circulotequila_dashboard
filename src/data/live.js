@@ -397,8 +397,19 @@ export function panelModel(cards) {
 
 const ENDPOINT = '/api/nocodb'
 
+// Clave de acceso del dashboard (deny-by-default del proxy). Se guarda local y
+// se manda en cada llamada como header x-app-key. Vacía = endpoint abierto.
+const APP_KEY_STORE = 'circulo.appkey'
+export const getAppKey = () => { try { return localStorage.getItem(APP_KEY_STORE) || '' } catch { return '' } }
+export const setAppKey = (k) => { try { localStorage.setItem(APP_KEY_STORE, (k || '').trim()) } catch {} }
+const apiHeaders = (extra) => {
+  const k = getAppKey()
+  return { accept: 'application/json', ...(k ? { 'x-app-key': k } : {}), ...(extra || {}) }
+}
+
 async function getResource(resource) {
-  const res = await fetch(`${ENDPOINT}?resource=${resource}`, { headers: { accept: 'application/json' } })
+  const res = await fetch(`${ENDPOINT}?resource=${resource}`, { headers: apiHeaders() })
+  if (res.status === 401) throw new Error('UNAUTHORIZED')
   const text = await res.text()
   let data
   try {
@@ -422,7 +433,7 @@ export async function patchLead(ncId, fields) {
   if (ncId == null) throw new Error('Este lead aún no existe en NocoDB (sin Id).')
   const res = await fetch(`${ENDPOINT}?resource=leads`, {
     method: 'PATCH',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    headers: apiHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ Id: ncId, ...fields }),
   })
   const data = await res.json().catch(() => ({}))
@@ -457,7 +468,7 @@ export async function fetchNotas(leadId) {
 export async function postNota({ leadId, autor, texto }) {
   const res = await fetch(`${ENDPOINT}?resource=notas`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', accept: 'application/json' },
+    headers: apiHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify({ lead_id: leadId, autor, texto }),
   })
   const data = await res.json().catch(() => ({}))

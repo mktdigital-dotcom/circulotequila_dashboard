@@ -10,9 +10,25 @@
 //   NOCODB_HOST  = https://n8n-nocodb.pzqn6b.easypanel.host   (opcional, ya por defecto)
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { timingSafeEqual } from 'node:crypto'
+
 const HOST = (process.env.NOCODB_HOST || 'https://n8n-nocodb.pzqn6b.easypanel.host').replace(/\/$/, '')
 // Acepta varios nombres comunes por si la variable se nombró distinto en Vercel.
-const TOKEN_NAMES = ['NOCODB_TOKEN', 'VITE_NOCODB_TOKEN', 'NOCODB_API_TOKEN', 'NC_TOKEN', 'XC_TOKEN', 'NOCO_TOKEN']
+// NO se aceptan nombres con prefijo VITE_: Vite los expondría en el bundle del
+// navegador — un token nunca debe llegar al cliente.
+const TOKEN_NAMES = ['NOCODB_TOKEN', 'NOCODB_API_TOKEN', 'NC_TOKEN', 'XC_TOKEN', 'NOCO_TOKEN']
+
+// Candado de acceso (deny-by-default). Si DASHBOARD_TOKEN está configurado en
+// Vercel, TODA petición exige el header `x-app-key` con ese valor; si no, 401.
+// Mientras no se configure, el endpoint sigue abierto (rollout sin lockout) —
+// pero configurarlo es lo recomendado (ver docs/SECURITY_AUDIT.md).
+const APP_KEY = (process.env.DASHBOARD_TOKEN || '').trim().replace(/^['"]|['"]$/g, '')
+function safeEqual(a, b) {
+  const ba = Buffer.from(String(a || ''))
+  const bb = Buffer.from(String(b || ''))
+  if (ba.length !== bb.length || ba.length === 0) return false
+  return timingSafeEqual(ba, bb)
+}
 // Limpia espacios, saltos de línea y comillas que a veces se cuelan al pegar en Vercel.
 const RAW_TOKEN = TOKEN_NAMES.map((n) => process.env[n]).find(Boolean) || ''
 const TOKEN = RAW_TOKEN.trim().replace(/^['"]|['"]$/g, '')
@@ -81,29 +97,29 @@ async function fetchAll(tableId) {
 }
 
 export default async function handler(req, res) {
-  // Diagnóstico: /api/nocodb?diag=1 → prueba la conexión real y reporta qué
-  // método de auth funciona, sin revelar el token.
+  // Cabeceras de seguridad en toda respuesta.
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader('X-Frame-Options', 'DENY')
+
+  // Candado deny-by-default (aplica a TODO, incluido diag) cuando hay APP_KEY.
+  if (APP_KEY && !safeEqual((req.headers['x-app-key'] || '').toString(), APP_KEY)) {
+    res.status(401).json({ error: 'No autorizado.' })
+    return
+  }
+
+  // Diagnóstico: /api/nocodb?diag=1 → prueba la conexión sin revelar el token
+  // ni detalles de infraestructura (solo estados booleanos).
   if (req.query?.diag != null) {
     const probeUrl = `${HOST}/api/v2/tables/${TABLES.leads}/records?limit=1`
-    const out = {
-      ok: true,
-      funcionServerless: 'activa',
-      tokenDetectado: !!TOKEN,
-      variableUsada: TOKEN_NAMES.find((n) => process.env[n]) || null,
-      tokenPrefijo: TOKEN ? TOKEN.slice(0, 7) : null, // ej. "nc_pat_"
-      tokenLongitud: TOKEN.length, // para detectar truncado/espacios
-      host: HOST,
-    }
+    const out = { ok: true, funcionServerless: 'activa', tokenDetectado: !!TOKEN, candadoActivo: !!APP_KEY }
     if (TOKEN) {
       try {
         const r1 = await fetch(probeUrl, { headers: { 'xc-token': TOKEN, accept: 'application/json' } })
-        out.pruebaXcToken = r1.status
-        const r2 = await fetch(probeUrl, { headers: { authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
-        out.pruebaBearer = r2.status
+        const r2 = r1.ok ? r1 : await fetch(probeUrl, { headers: { authorization: `Bearer ${TOKEN}`, accept: 'application/json' } })
         out.conexionOk = r1.ok || r2.ok
-        if (!r1.ok && !r2.ok) out.detalle = (await r1.text()).slice(0, 200)
-      } catch (e) {
-        out.errorRed = String(e.message || e)
+      } catch {
+        out.conexionOk = false
       }
     }
     res.status(200).json(out)
@@ -140,10 +156,11 @@ export default async function handler(req, res) {
       const tid = await getNotasTableId()
       const r = await ncCreate(tid, fields)
       const txt = await r.text()
-      if (!r.ok) { res.status(502).json({ error: 'No se pudo guardar la nota', detail: txt.slice(0, 300) }); return }
+      if (!r.ok) { console.error('notas create', r.status, txt.slice(0, 300)); res.status(502).json({ error: 'No se pudo guardar la nota' }); return }
       res.status(200).json({ ok: true, nota: JSON.parse(txt) })
     } catch (e) {
-      res.status(502).json({ error: String(e.message || e) })
+      console.error('notas create error', e)
+      res.status(502).json({ error: 'No se pudo guardar la nota' })
     }
     return
   }
@@ -164,11 +181,18 @@ export default async function handler(req, res) {
     try {
       const r = await ncWrite('PATCH', TABLES.leads, { Id: id, ...fields })
       const txt = await r.text()
-      if (!r.ok) { res.status(502).json({ error: 'No se pudo actualizar el lead', detail: txt.slice(0, 300) }); return }
+      if (!r.ok) { console.error('lead patch', r.status, txt.slice(0, 300)); res.status(502).json({ error: 'No se pudo actualizar el lead' }); return }
       res.status(200).json({ ok: true, lead: JSON.parse(txt) })
     } catch (e) {
-      res.status(502).json({ error: String(e.message || e) })
+      console.error('lead patch error', e)
+      res.status(502).json({ error: 'No se pudo actualizar el lead' })
     }
+    return
+  }
+
+  // Solo lectura de aquí en adelante.
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.status(405).json({ error: 'Método no permitido.' })
     return
   }
 
@@ -183,10 +207,12 @@ export default async function handler(req, res) {
   }
   try {
     const list = await fetchAll(tableId)
-    // Cache ligera en el edge: sirve al instante y revalida en segundo plano.
-    res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=60')
+    // Con candado activo NO se cachea en el edge (evita servir datos sin la key);
+    // sin candado, cache ligera para rendimiento.
+    res.setHeader('Cache-Control', APP_KEY ? 'private, no-store' : 's-maxage=15, stale-while-revalidate=60')
     res.status(200).json({ resource, count: list.length, list, fetchedAt: new Date().toISOString() })
   } catch (e) {
-    res.status(502).json({ error: 'No se pudo leer NocoDB', detail: String(e.message || e) })
+    console.error('read error', resource, e)
+    res.status(502).json({ error: 'No se pudo leer NocoDB' })
   }
 }
