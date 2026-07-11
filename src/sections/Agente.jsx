@@ -60,7 +60,10 @@ async function callWebhook({ phone, text, name }) {
         custom_fields: {},
       }),
     })
-    if (!res.ok) throw new Error('HTTP ' + res.status)
+    if (!res.ok) {
+      const cuerpo = await res.text().catch(() => '')
+      throw new Error('HTTP ' + res.status + (cuerpo ? ' · ' + cuerpo.slice(0, 200) : ''))
+    }
     const data = await res.json()
     // { ok:true, respuesta:[{parte:"..."}, ...] }  ·  toleramos formatos alternos
     let partes = []
@@ -359,7 +362,8 @@ export default function Agente({ onLead, goToPipeline }) {
       const msg =
         e.name === 'AbortError'
           ? 'El agente tardó demasiado (timeout). El flujo hace una espera de ~5s antes de responder; intenta de nuevo.'
-          : 'No se pudo conectar con el webhook. Si esto ocurre fuera del entorno de desarrollo, revisa que el nodo Webhook de n8n permita CORS para este dominio.'
+          : `No se pudo contactar al agente vía /api/agente — ${e.message || e}. ` +
+            '(404: falta desplegar la función · 401: falta iniciar sesión · 502/404 del webhook: WEBHOOK_SIMULADOR apunta a un webhook que no existe o el flujo n8n no está activo.)'
       setError(msg)
     } finally {
       setTyping(false)
