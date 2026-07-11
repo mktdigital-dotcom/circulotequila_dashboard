@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { simConfig, WEBHOOK_URL, WEBHOOK_PATH_DEV } from '../data/circulo.js'
+import { simConfig, WEBHOOK_PATH_DEV } from '../data/circulo.js'
 import { detectChannel, scoreLead, TIER_INFO } from '../data/simLogic.js'
-import { fetchNotas, postNota } from '../data/live.js'
+import { fetchNotas, postNota, getAppKey } from '../data/live.js'
 
 const now = () =>
   new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-// En dev pasamos por el proxy de Vite (evita CORS); en prod, URL directa.
-const ENDPOINT = import.meta.env.DEV ? WEBHOOK_PATH_DEV : WEBHOOK_URL
+// En dev pasamos por el proxy de Vite (evita CORS y va directo a n8n en local).
+// En prod, por el proxy serverless /api/agente (candado + URL/secreto server-side).
+const ENDPOINT = import.meta.env.DEV ? WEBHOOK_PATH_DEV : '/api/agente'
 
 // Llama al webhook real del flujo n8n "Círculo WEB" con el MISMO formato de
 // payload que envía ManyChat en producción — así la prueba es fiel al canal real.
@@ -17,9 +18,10 @@ async function callWebhook({ phone, text, name }) {
   const digits = phone.replace(/\D/g, '')
   const parts = (name || 'Prueba WhatsApp').trim().split(/\s+/)
   try {
+    const appKey = getAppKey()
     const res = await fetch(ENDPOINT, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(appKey ? { 'x-app-key': appKey } : {}) },
       signal: ctrl.signal,
       body: JSON.stringify({
         key: 'user:sim' + digits.slice(-10),
