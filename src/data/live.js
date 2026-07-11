@@ -454,6 +454,33 @@ export function cardPatchToNoco(patch) {
   return f
 }
 
+// Lee la CONVERSACIÓN de una prueba desde NocoDB (tabla Mensajes), para que sea
+// compartida entre navegadores (no depende del localStorage de cada quien).
+export async function fetchConversacion(leadId) {
+  const data = await getResource('signals').catch(() => ({ list: [] }))
+  const rows = (data.list || []).filter((m) => (m.lead_id || '').toString().trim() === leadId)
+  return rows
+    .sort((a, b) => ((a.ts || '').toString() < (b.ts || '').toString() ? -1 : 1))
+    .map((m) => {
+      const emisor = (m.emisor || m.actor || '').toString().toLowerCase()
+      const who = /agent|bot|sistema/.test(emisor) ? 'agent' : 'user'
+      const ts = (m.ts || '').toString()
+      const t = ts.includes(' ') ? (ts.split(' ')[1] || '').slice(0, 5) : ts.slice(11, 16)
+      return { who, text: (m.texto || m['valor/detalle'] || '').toString(), t: t || '' }
+    })
+    .filter((m) => m.text)
+}
+
+// Lista de sesiones de prueba que existen en NocoDB (leads mc_<tel> de prueba),
+// para que las pruebas de Kenia aparezcan en el simulador de Libia y viceversa.
+export async function fetchSesionesPrueba() {
+  const data = await getResource('leads').catch(() => ({ list: [] }))
+  return (data.list || [])
+    .map((r) => ({ id: (r.lead_id || '').toString().trim(), nombre: (r.nombre || '').toString().trim() }))
+    .filter((r) => /^mc_/i.test(r.id) && esLeadDePrueba(r.id))
+    .map((r) => ({ phone: r.id.replace(/^mc_/i, ''), label: r.nombre || 'Prueba' }))
+}
+
 // Lee las notas de un lead/prueba (por lead_id) desde NocoDB — compartidas.
 export async function fetchNotas(leadId) {
   const data = await getResource('notas').catch(() => ({ list: [] }))
