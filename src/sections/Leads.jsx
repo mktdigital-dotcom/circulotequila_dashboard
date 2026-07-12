@@ -277,15 +277,17 @@ function LeadDrawer({ card, onClose, onChange }) {
 
         {card.events?.length > 0 && (
           <div className="drawer__section">
-            <div className="drawer__label">Línea de tiempo · eventos</div>
-            <div className="timeline">
-              {card.events.map((ev, i) => (
-                <div className="tl-row" key={i}>
-                  <span className="tl-dot" style={{ background: accent }} />
-                  <span className="tl-e">{ev.e}</span>
-                  <span className="tl-t">{ev.t}</span>
-                </div>
-              ))}
+            <div className="drawer__label">Conversación</div>
+            <div className="conv">
+              {card.events.map((ev, i) => {
+                const agente = /agent|bot|sistema/i.test(ev.actor || ev.tipo || '')
+                return (
+                  <div className={'conv-msg ' + (agente ? 'conv-msg--agent' : 'conv-msg--client')} key={i}>
+                    <div className="conv-who">{agente ? 'Agente' : 'Cliente'} · {ev.t}</div>
+                    <div className="conv-bubble">{ev.e}</div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

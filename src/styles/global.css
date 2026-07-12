@@ -2248,6 +2248,24 @@ select.d-input { cursor: pointer; }
 }
 .authgate__title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
 .authgate__sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+/* Conversación en el drawer del Pipeline (cliente vs agente) */
+.conv { display: flex; flex-direction: column; gap: 8px; }
+.conv-msg { max-width: 85%; }
+.conv-msg--client { align-self: flex-start; }
+.conv-msg--agent { align-self: flex-end; text-align: right; }
+.conv-who { font-size: 10px; color: var(--muted); margin-bottom: 2px; letter-spacing: 0.03em; }
+.conv-bubble {
+  display: inline-block;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  text-align: left;
+}
+.conv-msg--client .conv-bubble { background: rgba(255, 255, 255, 0.05); border-top-left-radius: 3px; }
+.conv-msg--agent .conv-bubble { background: rgba(233, 182, 93, 0.12); border-top-right-radius: 3px; }
 .ktag__x {
   margin-left: 4px;
   color: inherit;

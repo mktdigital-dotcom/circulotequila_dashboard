@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { simConfig, WEBHOOK_PATH_DEV } from '../data/circulo.js'
 import { detectChannel, scoreLead, TIER_INFO } from '../data/simLogic.js'
-import { fetchNotas, postNota, getAppKey, fetchConversacion, fetchSesionesPrueba } from '../data/live.js'
+import { fetchNotas, postNota, getAppKey, fetchConversacion } from '../data/live.js'
 
 const now = () =>
   new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -198,8 +198,6 @@ export default function Agente({ onLead, goToPipeline }) {
   })
   const [savingNota, setSavingNota] = useState(false)
   const [notaErr, setNotaErr] = useState('')
-  // Sesiones de prueba que existen en NocoDB (compartidas entre navegadores).
-  const [remoteSesiones, setRemoteSesiones] = useState([])
 
   // Persiste la sesión del teléfono activo en cada cambio.
   useEffect(() => {
@@ -228,14 +226,6 @@ export default function Agente({ onLead, goToPipeline }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone])
 
-  // Lista de sesiones de prueba desde NocoDB (para ver las de Kenia y de otros).
-  useEffect(() => {
-    let alive = true
-    const load = () => fetchSesionesPrueba().then((rows) => { if (alive) setRemoteSesiones(rows) }).catch(() => {})
-    load()
-    const id = setInterval(load, 30000)
-    return () => { alive = false; clearInterval(id) }
-  }, [])
 
   const guardarNota = async () => {
     const t = nota.trim()
@@ -288,13 +278,12 @@ export default function Agente({ onLead, goToPipeline }) {
   // conversación de prueba independiente que persiste).
   const changePhone = (p) => {
     const sess = loadStore()[p] || {}
-    const remoteLabel = remoteSesiones.find((r) => r.phone === p)?.label
     setPhone(p)
     setMessages(sess.messages || [])
     setDeteccion(sess.deteccion || null)
     setScore(sess.score || null)
     setSignalLog(sess.signalLog || [])
-    setTestName(sess.testName || remoteLabel || 'Prueba nueva')
+    setTestName(sess.testName || 'Prueba nueva')
     setError('')
   }
 
@@ -545,19 +534,6 @@ export default function Agente({ onLead, goToPipeline }) {
                   <button className="phone-pill__del" onClick={() => borrarSesion(p.phone)} title="Borrar sesión">✕</button>
                 </div>
               ))}
-              {remoteSesiones
-                .filter((r) => !simConfig.testPhones.some((t) => t.phone === r.phone) && !sessions.some((s) => s.phone === r.phone))
-                .map((p) => (
-                  <button
-                    key={p.phone}
-                    className={'phone-pill ' + (p.phone === phone ? 'is-active' : '')}
-                    onClick={() => changePhone(p.phone)}
-                    title="Prueba compartida (guardada en NocoDB)"
-                  >
-                    {nombreDe(p.phone, p.label)}
-                    <span className="phone-pill__num">{p.phone}</span>
-                  </button>
-                ))}
             </div>
             <button className="nueva-prueba" onClick={nuevaPrueba}>+ Nueva prueba</button>
             <div className="rail__hint">
