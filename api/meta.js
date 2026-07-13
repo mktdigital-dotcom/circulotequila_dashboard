@@ -15,10 +15,12 @@
 import { timingSafeEqual } from 'node:crypto'
 
 const clean = (v) => (v || '').trim().replace(/^['"]|['"]$/g, '')
-const TOKEN = clean(process.env.META_ACCESS_TOKEN)
-const RAW_ACCOUNT = clean(process.env.META_AD_ACCOUNT_ID)
+const pick = (names) => { for (const n of names) { const v = clean(process.env[n]); if (v) return v } return '' }
+// Tolerante a variaciones de nombre en Vercel (mayúsculas, guiones, sin _ID…).
+const TOKEN = pick(['META_ACCESS_TOKEN', 'META_TOKEN', 'META_ACCESSTOKEN', 'METAACCESSTOKEN', 'FB_ACCESS_TOKEN', 'META_MARKETING_TOKEN'])
+const RAW_ACCOUNT = pick(['META_AD_ACCOUNT_ID', 'META_AD_ACCOUNT', 'META_ADACCOUNT_ID', 'META_ACCOUNT_ID', 'METAADACCOUNTID', 'AD_ACCOUNT_ID', 'META_AD_ACCOUNTID'])
 const ACCOUNT = RAW_ACCOUNT ? (RAW_ACCOUNT.startsWith('act_') ? RAW_ACCOUNT : 'act_' + RAW_ACCOUNT) : ''
-const VERSION = clean(process.env.META_API_VERSION) || 'v21.0'
+const VERSION = pick(['META_API_VERSION', 'META_VERSION']) || 'v21.0'
 const GRAPH = 'https://graph.facebook.com'
 const APP_KEY = clean(process.env.DASHBOARD_TOKEN)
 
@@ -52,25 +54,29 @@ export default async function handler(req, res) {
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('X-Frame-Options', 'DENY')
 
-  if (APP_KEY && !safeEqual((req.headers['x-app-key'] || '').toString(), APP_KEY)) {
-    res.status(401).json({ error: 'No autorizado.' })
-    return
-  }
-
-  // Diagnóstico sin revelar el token.
+  // Diagnóstico (sin candado y sin revelar el token): abrilo en el navegador
+  // /api/meta?diag=1 para ver EXACTAMENTE qué detecta el servidor.
   if (req.query?.diag != null) {
     res.status(200).json({
       ok: true,
       tokenDetectado: !!TOKEN,
       cuentaDetectada: !!ACCOUNT,
+      cuenta: ACCOUNT || null,
       version: VERSION,
+      variablesVisibles: Object.keys(process.env).filter((k) => /^META|AD_ACCOUNT/i.test(k)),
     })
     return
   }
 
+  if (APP_KEY && !safeEqual((req.headers['x-app-key'] || '').toString(), APP_KEY)) {
+    res.status(401).json({ error: 'No autorizado.' })
+    return
+  }
+
   if (!TOKEN || !ACCOUNT) {
+    const faltan = [!TOKEN && 'META_ACCESS_TOKEN (el token)', !ACCOUNT && 'META_AD_ACCOUNT_ID (la cuenta act_...)'].filter(Boolean)
     res.status(500).json({
-      error: 'Falta configurar Meta. Revisa META_ACCESS_TOKEN y META_AD_ACCOUNT_ID en Vercel.',
+      error: `Falta configurar en Vercel: ${faltan.join(' y ')}. Revisa el nombre exacto y haz Redeploy.`,
     })
     return
   }
