@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { simConfig, WEBHOOK_PATH_DEV } from '../data/circulo.js'
 import { detectChannel, scoreLead, TIER_INFO } from '../data/simLogic.js'
-import { fetchNotas, postNota, getAppKey, fetchConversacion } from '../data/live.js'
+import { fetchNotas, postNota, getAppKey, fetchConversacion, fetchSesionesPrueba } from '../data/live.js'
 
 const now = () =>
   new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -198,6 +198,9 @@ export default function Agente({ onLead, goToPipeline }) {
   })
   const [savingNota, setSavingNota] = useState(false)
   const [notaErr, setNotaErr] = useState('')
+  // Todas las pruebas del equipo (desde NocoDB) + filtro por fecha.
+  const [remoteSesiones, setRemoteSesiones] = useState([])
+  const [fechaFiltro, setFechaFiltro] = useState('')
 
   // Persiste la sesión del teléfono activo en cada cambio.
   useEffect(() => {
@@ -225,6 +228,15 @@ export default function Agente({ onLead, goToPipeline }) {
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phone])
+
+  // Lista de TODAS las pruebas del equipo desde NocoDB (compartida, cada 30s).
+  useEffect(() => {
+    let alive = true
+    const load = () => fetchSesionesPrueba().then((rows) => { if (alive) setRemoteSesiones(rows) }).catch(() => {})
+    load()
+    const id = setInterval(load, 30000)
+    return () => { alive = false; clearInterval(id) }
+  }, [])
 
 
   const guardarNota = async () => {
@@ -506,6 +518,41 @@ export default function Agente({ onLead, goToPipeline }) {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* ── Pruebas del equipo · lista compartida filtrable por fecha ──────── */}
+        <div className="card card--pad-lg">
+          <div className="card__head">
+            <span className="card__tag">Pruebas del equipo · todas · compartidas</span>
+            <input
+              type="date"
+              className="d-input d-input--date"
+              value={fechaFiltro}
+              onChange={(e) => setFechaFiltro(e.target.value)}
+              title="Filtrar por fecha"
+            />
+          </div>
+          <div className="rail__hint" style={{ marginTop: 0, marginBottom: 8 }}>
+            Todas las pruebas (tuyas y de Kenia), desde cualquier compu. Clic en una para abrir su
+            conversación arriba. {fechaFiltro && <button className="link-clear" onClick={() => setFechaFiltro('')}>× quitar filtro</button>}
+          </div>
+          <div className="team-tests">
+            {(() => {
+              const lista = remoteSesiones.filter((s) => !fechaFiltro || (s.fecha || '').slice(0, 10) === fechaFiltro)
+              if (remoteSesiones.length === 0) return <div className="muted" style={{ fontSize: 12 }}>Aún no hay pruebas guardadas.</div>
+              if (lista.length === 0) return <div className="muted" style={{ fontSize: 12 }}>Ninguna prueba en esa fecha.</div>
+              return lista.map((s) => (
+                <button
+                  key={s.phone}
+                  className={'team-test' + (s.phone === phone ? ' is-active' : '')}
+                  onClick={() => changePhone(s.phone)}
+                >
+                  <span className="team-test__name">{s.label}</span>
+                  <span className="team-test__meta">{(s.fecha || '—').slice(0, 10)} · {s.etapa || '—'}</span>
+                </button>
+              ))
+            })()}
           </div>
         </div>
         </div>{/* /sim-main */}

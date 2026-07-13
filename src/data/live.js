@@ -484,9 +484,15 @@ export async function fetchConversacion(leadId) {
 export async function fetchSesionesPrueba() {
   const data = await getResource('leads').catch(() => ({ list: [] }))
   return (data.list || [])
-    .map((r) => ({ id: (r.lead_id || '').toString().trim(), nombre: (r.nombre || '').toString().trim() }))
+    .map((r) => ({
+      id: (r.lead_id || '').toString().trim(),
+      nombre: (r.nombre || '').toString().trim(),
+      fecha: (r.fecha || '').toString().trim(),
+      etapa: (r.etapa || '').toString().trim(),
+    }))
     .filter((r) => /^mc_/i.test(r.id) && esLeadDePrueba(r.id))
-    .map((r) => ({ phone: r.id.replace(/^mc_/i, ''), label: r.nombre || 'Prueba' }))
+    .map((r) => ({ phone: r.id.replace(/^mc_/i, ''), label: r.nombre || 'Prueba', fecha: r.fecha, etapa: r.etapa }))
+    .sort((a, b) => (a.fecha < b.fecha ? 1 : -1)) // más recientes primero
 }
 
 // Lee las notas de un lead/prueba (por lead_id) desde NocoDB — compartidas.
