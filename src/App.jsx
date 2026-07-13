@@ -5,6 +5,7 @@ import Embudo from './sections/Embudo.jsx'
 import Leads from './sections/Leads.jsx'
 import Tendencias from './sections/Tendencias.jsx'
 import Agente from './sections/Agente.jsx'
+import Anuncios from './sections/Anuncios.jsx'
 
 const STORAGE_KEY = 'circulo.board.v4'
 
@@ -127,6 +128,7 @@ export default function App() {
       embudo: { ph: 'Buscar en el resumen…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
       leads: { ph: 'Buscar lead, región u ocasión…', pill: livePill, btn: '+ Nuevo lead', arrow: false, action: addLead },
       tendencias: { ph: 'Buscar en tendencias…', pill: livePill, btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
+      anuncios: { ph: 'Buscar anuncio o campaña…', pill: 'Meta Ads · API', btn: 'Exportar', arrow: true, action: () => exportCSV(board) },
       agente: { ph: 'Probar un mensaje contra el SOP…', pill: 'agente · en línea', btn: 'Cargar SOP', arrow: true, action: () => window.open(agent.materials, '_blank', 'noopener') },
     }),
     [board, livePill],
@@ -139,6 +141,7 @@ export default function App() {
     embudo: <Embudo live={live} board={board} query={query} period={period} />,
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     tendencias: <Tendencias live={live} />,
+    anuncios: <Anuncios />,
     agente: <Agente onLead={upsertLead} goToPipeline={() => setSection('leads')} />,
   }
 
