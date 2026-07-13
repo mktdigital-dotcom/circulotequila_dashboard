@@ -149,10 +149,19 @@ export default function App() {
     return (
       <div className="authgate">
         <div className="authgate__box">
-          <div className="authgate__title">Círculo · acceso restringido</div>
-          <p className="authgate__sub">Ingresa la clave del dashboard para continuar.</p>
+          <div className="authgate__brand">
+            <div className="brand__edition">{brand.edition}</div>
+            <div className="brand__name">
+              {brand.name}
+              <span className="reg">®</span>
+            </div>
+            <div className="brand__sub">{brand.sub}</div>
+          </div>
+          <div className="authgate__hr" />
+          <div className="authgate__title">Panel comercial · acceso privado</div>
+          <p className="authgate__sub">Ingresa tu clave para entrar.</p>
           <input
-            className="d-input"
+            className="authgate__input"
             type="password"
             value={keyInput}
             onChange={(e) => setKeyInput(e.target.value)}
@@ -160,7 +169,8 @@ export default function App() {
             placeholder="Clave de acceso"
             autoFocus
           />
-          <button className="btn-export" style={{ marginTop: 10, width: '100%' }} onClick={entrar}>Entrar</button>
+          <button className="authgate__btn" onClick={entrar}>Entrar</button>
+          <div className="authgate__foot">Acceso del equipo · Círculo Tequila</div>
         </div>
       </div>
     )

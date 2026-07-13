@@ -2235,19 +2235,81 @@ select.d-input { cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg, #0d0d0f);
-  padding: 20px;
+  background: var(--bg);
+  background-image:
+    radial-gradient(80% 60% at 50% 0%, rgba(233, 182, 93, 0.07), transparent 60%),
+    radial-gradient(70% 50% at 50% 120%, rgba(76, 202, 160, 0.05), transparent 62%);
+  padding: 24px;
 }
 .authgate__box {
   width: 100%;
-  max-width: 340px;
+  max-width: 380px;
+  background: var(--card-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 22px;
+  padding: 40px 34px 30px;
+  text-align: center;
+  box-shadow: 0 40px 90px -50px rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(14px);
+}
+.authgate__brand { margin-bottom: 22px; }
+.authgate__brand .brand__edition {
+  font-size: 10px; letter-spacing: 0.34em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.authgate__brand .brand__name {
+  font-family: var(--sans); font-size: 30px; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--ink); line-height: 1;
+}
+.authgate__brand .brand__name .reg { font-size: 11px; vertical-align: super; color: var(--gold); margin-left: 2px; }
+.authgate__brand .brand__sub {
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--gold-dim); margin-top: 8px;
+}
+.authgate__hr {
+  height: 1px; margin: 0 auto 22px;
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+}
+.authgate__title { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 5px; }
+.authgate__sub { font-size: 12.5px; color: var(--muted); margin-bottom: 18px; }
+.authgate__input {
+  width: 100%;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--line-strong);
-  border-radius: 16px;
-  padding: 28px 24px;
+  border-radius: 12px;
+  padding: 13px 15px;
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+  text-align: center;
+  letter-spacing: 0.06em;
+  outline: none;
+  transition: border-color 0.15s;
 }
-.authgate__title { font-size: 16px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
-.authgate__sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+.authgate__input:focus { border-color: rgba(233, 182, 93, 0.55); }
+.authgate__input::placeholder { letter-spacing: 0; color: var(--muted-2); }
+.authgate__btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
+  color: #1a1206;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.1s;
+}
+.authgate__btn:hover { filter: brightness(1.06); }
+.authgate__btn:active { transform: translateY(1px); }
+.authgate__foot {
+  margin-top: 20px;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--muted-2);
+}
 /* Conversación en el drawer del Pipeline (cliente vs agente) */
 .conv { display: flex; flex-direction: column; gap: 8px; }
 .conv-msg { max-width: 85%; }
