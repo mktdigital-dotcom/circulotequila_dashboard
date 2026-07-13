@@ -5,7 +5,7 @@
    ─────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --bg: #050506;
+  --bg: #030304;
 
   --ink: #f4ecde;
   --ink-soft: #cdbfa6;
@@ -24,8 +24,8 @@
   --blue: #85aad7;
   --orange: #dc9456;
 
-  --card: rgba(26, 20, 13, 0.46);
-  --card-2: rgba(32, 25, 17, 0.55);
+  --card: rgba(20, 20, 22, 0.55);
+  --card-2: rgba(26, 26, 29, 0.6);
 
   --radius: 24px;
   --radius-sm: 15px;
@@ -58,9 +58,9 @@ body {
      costados — esencia Apple: contención, espacio, una sola fuente de luz */
   background-image:
     radial-gradient(130% 80% at 50% -16%, #000 0%, rgba(0, 0, 0, 0.4) 30%, transparent 50%),
-    radial-gradient(90% 80% at 86% 116%, rgba(244, 190, 104, 0.26), rgba(214, 150, 70, 0.05) 36%, transparent 62%),
-    radial-gradient(92% 86% at -2% 116%, rgba(58, 178, 138, 0.18), rgba(40, 130, 100, 0.04) 40%, transparent 62%),
-    radial-gradient(66% 50% at 50% 128%, rgba(150, 96, 40, 0.16), transparent 72%);
+    radial-gradient(90% 80% at 86% 116%, rgba(244, 190, 104, 0.08), rgba(214, 150, 70, 0.02) 36%, transparent 62%),
+    radial-gradient(92% 86% at -2% 116%, rgba(58, 178, 138, 0.06), rgba(40, 130, 100, 0.015) 40%, transparent 62%),
+    radial-gradient(66% 50% at 50% 128%, rgba(150, 96, 40, 0.04), transparent 72%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
