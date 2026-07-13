@@ -144,7 +144,9 @@ export function mapLeadRowToCard(row) {
   const tier = (row.tier || '').toString().trim().toUpperCase() || null
   const score = row.score != null && row.score !== '' ? Number(row.score) : null
   const ciudad = row.ciudad || '—'
-  const estatus = (row.estatus_mkt || '').toString().trim()
+  // La columna real en NocoDB se llama `estatus` (el flujo n8n la escribe así);
+  // se acepta también `estatus_mkt` por si algún día se renombra.
+  const estatus = (row.estatus_mkt || row.estatus || '').toString().trim()
   const owner = (row.owner || '').toString().trim()
 
   const leadId = (row.lead_id || '').toString().trim()
@@ -183,12 +185,18 @@ export function mapLeadRowToCard(row) {
     fecha: row.fecha || '',
     etapaTxt: row.etapa || '',
     estatusMkt: estatus,
+    ciudadValidada: row.ciudad_validada || '',
+    tipoLead: row.tipo_lead || '',
     contexto: row.contexto || '',
     requalifyAt: row.requalify_at || '',
     owner,
-    // Derivados para Seguimientos / handoff:
-    responsable: owner === 'agente' ? 'Agente IA' : (VENDEDOR_CIUDAD[ciudad] || owner || '—'),
-    vendedor: stage >= 5 ? VENDEDOR_CIUDAD[ciudad] || '—' : null,
+    // Derivados para Seguimientos / handoff. La tabla no tiene columna `owner`:
+    // en etapas 1–4 el responsable ES el agente (§06); de 5+ el vendedor por ciudad.
+    responsable:
+      owner === 'agente' || (!owner && typeof stage === 'number' && stage < 5)
+        ? 'Agente IA'
+        : VENDEDOR_CIUDAD[row.ciudad_validada || ciudad] || owner || '—',
+    vendedor: stage >= 5 ? VENDEDOR_CIUDAD[row.ciudad_validada || ciudad] || '—' : null,
     proximo:
       ESTATUS_NEXT[norm(estatus)] ||
       (stage === 'reactivacion' ? '⚠ Reactivar lead perdido' : 'Continuar la conversación'),

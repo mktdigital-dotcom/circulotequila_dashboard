@@ -179,7 +179,16 @@ function LeadDrawer({ card, onClose, onChange }) {
             <Field label="Línea de negocio"><span className="chip">{card.linea || '—'}</span></Field>
             <Field label="Propósito">{card.proposito || '—'}</Field>
             <Field label="Volumen">{card.volumen ? card.volumen + ' bot' : '—'}</Field>
-            <Field label="Ciudad">{card.ciudad || '—'}</Field>
+            <Field label="Ciudad">
+              {card.ciudad || '—'}
+              {card.ciudadValidada && card.ciudadValidada !== card.ciudad && (
+                <span className="chip chip--soft" style={{ marginLeft: 6 }}>validada: {card.ciudadValidada}</span>
+              )}
+              {card.ciudadValidada && card.ciudadValidada === card.ciudad && (
+                <span className="chip chip--soft" style={{ marginLeft: 6 }}>✓ validada</span>
+              )}
+            </Field>
+            <Field label="Tipo de lead">{card.tipoLead || '—'}</Field>
             <Field label="Canal">{card.canal || '—'}</Field>
             <Field label="Origen / campaña">
               {card.origen || card.campana || '—'}
