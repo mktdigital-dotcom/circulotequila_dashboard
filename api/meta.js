@@ -17,7 +17,11 @@ import { timingSafeEqual } from 'node:crypto'
 const clean = (v) => (v || '').trim().replace(/^['"]|['"]$/g, '')
 const pick = (names) => { for (const n of names) { const v = clean(process.env[n]); if (v) return v } return '' }
 // Tolerante a variaciones de nombre en Vercel (mayúsculas, guiones, sin _ID…).
+// El token no contiene espacios; limpiamos saltos/espacios y un "Bearer " pegado
+// por error (causas típicas de "Cannot parse access token").
 const TOKEN = pick(['META_ACCESS_TOKEN', 'META_TOKEN', 'META_ACCESSTOKEN', 'METAACCESSTOKEN', 'FB_ACCESS_TOKEN', 'META_MARKETING_TOKEN'])
+  .replace(/^Bearer\s+/i, '')
+  .replace(/\s+/g, '')
 const RAW_ACCOUNT = pick(['META_AD_ACCOUNT_ID', 'META_AD_ACCOUNT', 'META_ADACCOUNT_ID', 'META_ACCOUNT_ID', 'METAADACCOUNTID', 'AD_ACCOUNT_ID', 'META_AD_ACCOUNTID'])
 const ACCOUNT = RAW_ACCOUNT ? (RAW_ACCOUNT.startsWith('act_') ? RAW_ACCOUNT : 'act_' + RAW_ACCOUNT) : ''
 const VERSION = pick(['META_API_VERSION', 'META_VERSION']) || 'v21.0'
