@@ -108,14 +108,21 @@ export default async function handler(req, res) {
     const r = await fetch(url, { headers: { accept: 'application/json' } })
     const data = await r.json().catch(() => ({}))
     if (!r.ok || data.error) {
-      // No filtrar el token; sí un mensaje útil de Meta (código + tipo).
       const e = data.error || {}
-      console.error('meta insights', r.status, e.message)
+      console.error('meta insights', r.status, e.code, e.error_subcode, e.message)
+      let pista
+      if (e.code === 190) pista = 'Token inválido o expirado — regenéralo (usa Usuario del Sistema, no caduca).'
+      else if (e.code === 200 || e.code === 10) pista = 'El Usuario del Sistema no tiene asignada esta cuenta publicitaria, o faltan permisos ads_read.'
+      else if (/access blocked|verification|not been approved|standard access|advanced access/i.test(e.message || '')) {
+        pista = 'La App / el Negocio necesita acceso a la Marketing API: verifica el negocio en Meta y agrega el producto Marketing API a la App. Con Usuario del Sistema y la cuenta asignada suele bastar.'
+      }
       res.status(502).json({
         error: 'Meta rechazó la consulta.',
         metaCode: e.code ?? r.status,
+        metaSubcode: e.error_subcode,
         metaMensaje: e.message || 'Error desconocido',
-        pista: e.code === 190 ? 'Token inválido o expirado — regenéralo.' : e.code === 200 ? 'Faltan permisos (ads_read) sobre la cuenta.' : undefined,
+        metaUsuario: e.error_user_title || e.error_user_msg ? `${e.error_user_title || ''}${e.error_user_msg ? ' — ' + e.error_user_msg : ''}` : undefined,
+        pista,
       })
       return
     }

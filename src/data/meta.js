@@ -18,8 +18,9 @@ async function getMeta(range) {
     throw new Error('La API /api/meta no está disponible en este deploy.')
   }
   if (!res.ok) {
-    const extra = data.metaMensaje ? ` — ${data.metaMensaje}` : ''
-    throw new Error((data.error || `HTTP ${res.status}`) + extra + (data.pista ? ` (${data.pista})` : ''))
+    const cod = data.metaCode != null ? ` [código ${data.metaCode}${data.metaSubcode ? '/' + data.metaSubcode : ''}]` : ''
+    const msg = data.metaUsuario || data.metaMensaje ? ` — ${data.metaUsuario || data.metaMensaje}` : ''
+    throw new Error((data.error || `HTTP ${res.status}`) + cod + msg + (data.pista ? ` · ${data.pista}` : ''))
   }
   return data
 }
