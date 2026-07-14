@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { simConfig, WEBHOOK_PATH_DEV } from '../data/circulo.js'
 import { detectChannel, scoreLead, TIER_INFO } from '../data/simLogic.js'
-import { fetchNotas, postNota, getAppKey, fetchConversacion, fetchSesionesPrueba } from '../data/live.js'
+import { fetchNotas, postNota, getAppKey, fetchConversacion, fetchSesionesPrueba, conversacionEscalaAsesor } from '../data/live.js'
 
 const now = () =>
   new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit', hour12: false })
@@ -105,6 +105,12 @@ function buildSimLead(phone, messages, det, sc, testName) {
   const bottles = sc?.bottles ?? null
   const ciudad = det?.ciudad || '—'
   const campana = det?.campana || ''
+  // Necesita asesor: por etapa (interesado/transferido) O si el agente escaló a
+  // un asesor en el chat (ej. inventario limitado, caso especial).
+  const escaloAsesor = conversacionEscalaAsesor(
+    messages.map((m) => ({ actor: m.who === 'agent' ? 'agente' : 'cliente', text: m.text })),
+  )
+  const necesitaAsesor = stage === 4 || stage === 5 || escaloAsesor
   return {
     // MISMO id que el lead que el webhook guarda en NocoDB (lead_id = mc_<tel>),
     // para que la vista previa local y la fila real de NocoDB sean UNA sola tarjeta:
@@ -129,9 +135,9 @@ function buildSimLead(phone, messages, det, sc, testName) {
     linea: det?.linea || '',
     campana,
     estatusMkt: 'Prueba del simulador',
-    necesitaAsesor: stage === 4 || stage === 5,
+    necesitaAsesor,
     contexto: (messages.find((m) => m.who === 'user')?.text || '').slice(0, 160),
-    tags: [stage === 4 || stage === 5 ? 'necesita asesor' : null, 'prueba', campana].filter(Boolean),
+    tags: [necesitaAsesor ? 'necesita asesor' : null, 'prueba', campana].filter(Boolean),
     notes: [],
     events: messages.map((m) => ({ t: m.t, e: m.text, tipo: m.who === 'user' ? 'cliente' : 'agente' })),
     ultima: 'ahora',

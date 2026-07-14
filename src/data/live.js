@@ -214,6 +214,19 @@ export function mapLeadRowToCard(row) {
   }
 }
 
+// Frases con las que el agente ESCALA a un asesor humano dentro del chat (aunque
+// la etapa no sea "interesado"): ej. inventario limitado, caso especial, etc.
+export const ESCALA_ASESOR_RE =
+  /(canaliz|un asesor se|asesor se pondra|asesor se comunicar|asesor se contactar|te paso con un asesor|con uno de nuestros asesores|un asesor te|pondra en contacto|se pondra en contacto|asesor.{0,20}(contacto|contigo|comunicar)|contactar.{0,15}asesor)/
+
+// ¿Alguna respuesta del AGENTE escala a un asesor? (revisa la conversación)
+export function conversacionEscalaAsesor(events) {
+  return (events || []).some((ev) => {
+    const esAgente = /agent|bot|sistema/i.test(ev.actor || ev.tipo || '')
+    return esAgente && ESCALA_ASESOR_RE.test(norm(ev.e || ev.text || ''))
+  })
+}
+
 // Une las señales (Signal_log) a cada lead: línea de tiempo + última interacción.
 function attachSignals(cards, signalRows) {
   const byLead = {}
@@ -235,6 +248,13 @@ function attachSignals(cards, signalRows) {
     if (!evs.length) return c
     const lastTs = evs[evs.length - 1].t
     const enriched = { ...c, events: evs }
+    // El agente escaló a un asesor EN el chat (aunque la etapa no lo marque).
+    if (!enriched.necesitaAsesor && conversacionEscalaAsesor(evs)) {
+      enriched.necesitaAsesor = true
+      if (!(enriched.tags || []).includes('necesita asesor')) {
+        enriched.tags = ['necesita asesor', ...(enriched.tags || [])]
+      }
+    }
     // Fallback de atribución: si NocoDB aún no trae `campaña`, deducirla de la
     // FRASE DE APERTURA del primer mensaje del cliente (misma lógica que n8n).
     // Fuente de verdad sigue siendo NocoDB; esto solo rellena mientras el flujo
