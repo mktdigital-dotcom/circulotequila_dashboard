@@ -152,7 +152,12 @@ export function mapLeadRowToCard(row) {
   const leadId = (row.lead_id || '').toString().trim()
   const esPrueba = esLeadDePrueba(leadId)
 
+  // El sistema pasa la situación a un asesor humano en el handoff: cuando el
+  // lead llega a "interesado" (aceptó avanzar) o ya fue "transferido".
+  const necesitaAsesor = stage === 4 || stage === 5
+
   const tags = []
+  if (necesitaAsesor) tags.push('necesita asesor')
   if (esPrueba) tags.push('prueba')
   if (tier) tags.push('tier ' + tier)
   if (row.linea) tags.push(row.linea)
@@ -161,6 +166,7 @@ export function mapLeadRowToCard(row) {
   return {
     id: leadId,
     esPrueba,
+    necesitaAsesor,
     ncId: row.Id ?? null,
     stage,
     name: (row.nombre || row.lead_id || 'Lead sin nombre') + (esPrueba ? ' 🧪' : ''),

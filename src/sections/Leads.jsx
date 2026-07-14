@@ -144,6 +144,13 @@ function LeadDrawer({ card, onClose, onChange }) {
           {card.ciudad} · <span className="lead-id">{card.id}</span>
         </div>
         {editErr && <div className="muted" style={{ fontSize: 11, color: 'var(--red)' }}>{editErr}</div>}
+
+        {card.necesitaAsesor && (
+          <div className="asesor-banner">
+            🙋 <b>Necesita asesor</b> — el sistema pasó esta conversación a un humano.
+            {card.vendedor ? ` Asignado: ${card.vendedor}.` : ' Sin asesor asignado aún.'}
+          </div>
+        )}
         <div className="drawer__value" style={{ color: accent }}>
           {editing ? (
             <span className="d-inline"><In v={card.value} set={(v) => set({ value: v })} type="number" /> MXN</span>
@@ -342,7 +349,9 @@ function Column({ stage, board, match, overStage, setOverStage, onDrop, onDragSt
             {(c.tags?.length > 0 || c.notasLive?.length > 0) && (
               <div className="kcard__tags">
                 {(c.tags || []).map((t) => (
-                  <span key={t} className={'ktag' + (t === 'reactivación' ? ' ktag--react' : '')}>{t}</span>
+                  <span key={t} className={'ktag' + (t === 'reactivación' ? ' ktag--react' : t === 'necesita asesor' ? ' ktag--asesor' : '')}>
+                    {t === 'necesita asesor' ? '🙋 necesita asesor' : t}
+                  </span>
                 ))}
                 {c.notasLive?.length > 0 && <span className="ktag ktag--note">✎ {c.notasLive.length}</span>}
               </div>

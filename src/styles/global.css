@@ -1327,6 +1327,23 @@ a {
   background: rgba(226, 121, 92, 0.1);
   border-color: rgba(226, 121, 92, 0.25);
 }
+.ktag--asesor {
+  color: #1a1206;
+  background: linear-gradient(180deg, var(--gold-bright), var(--gold-dim));
+  border-color: transparent;
+  font-weight: 600;
+}
+.asesor-banner {
+  margin: 12px 0 4px;
+  padding: 10px 13px;
+  border-radius: 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--gold-bright);
+  background: rgba(233, 182, 93, 0.1);
+  border: 1px solid rgba(233, 182, 93, 0.3);
+}
+.asesor-banner b { color: var(--ink); }
 .kcol__drop {
   border: 1px dashed rgba(255, 255, 255, 0.14);
   border-radius: 11px;
