@@ -72,6 +72,26 @@ export default async function handler(req, res) {
     return
   }
 
+  // Prueba mínima (sin candado): ¿el token puede siquiera VER la cuenta? Sirve
+  // para saber si el problema es "acceso a la cuenta" o solo "leer anuncios".
+  if (req.query?.probe != null) {
+    if (!TOKEN || !ACCOUNT) { res.status(200).json({ paso: 'config', ok: false, detalle: 'Falta token o cuenta.' }); return }
+    try {
+      const u = `${GRAPH}/${VERSION}/${ACCOUNT}?fields=name,account_status,currency&access_token=${encodeURIComponent(TOKEN)}`
+      const r = await fetch(u, { headers: { accept: 'application/json' } })
+      const d = await r.json().catch(() => ({}))
+      if (r.ok && !d.error) {
+        res.status(200).json({ paso: 'cuenta', ok: true, nombre: d.name, estado: d.account_status, moneda: d.currency, mensaje: 'El token SÍ puede ver la cuenta. El bloqueo es solo de LECTURA de anuncios (permiso ads_read / app en modo Live).' })
+      } else {
+        const e = d.error || {}
+        res.status(200).json({ paso: 'cuenta', ok: false, metaCode: e.code, metaMensaje: e.message, mensaje: 'El token NO puede ni ver la cuenta → falta asignar la cuenta al Usuario del Sistema, o el negocio no está verificado.' })
+      }
+    } catch {
+      res.status(200).json({ paso: 'cuenta', ok: false, mensaje: 'No se pudo contactar a Meta.' })
+    }
+    return
+  }
+
   if (APP_KEY && !safeEqual((req.headers['x-app-key'] || '').toString(), APP_KEY)) {
     res.status(401).json({ error: 'No autorizado.' })
     return
