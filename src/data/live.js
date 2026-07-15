@@ -152,6 +152,19 @@ export function mapLeadRowToCard(row) {
   const leadId = (row.lead_id || '').toString().trim()
   const esPrueba = esLeadDePrueba(leadId)
 
+  // perdido_at / motivo_perdida (resultado #8, dolor #1 de Kenia): a partir de
+  // este cambio, marcar un lead como perdido NO sobreescribe `etapa` — así se
+  // conserva en qué paso real iba cuando se perdió. `stage === 'reactivacion'`
+  // sigue soportado como fallback para leads perdidos ANTES de este cambio,
+  // cuando `etapa` sí se sobreescribía y no quedó registro del paso real.
+  const perdidoAt = (row.perdido_at || '').toString().trim()
+  const motivoPerdida = (row.motivo_perdida || '').toString().trim()
+  const perdida = stage === 'reactivacion' || !!perdidoAt
+  // lead_malo = se perdió antes del handoff (etapa 1-4) · handoff_malo = ya
+  // estaba con vendedor (etapa 5+) · sin_clasificar = perdido histórico sin
+  // etapa real registrada.
+  const perdidaEn = !perdida ? null : typeof stage === 'number' ? (stage < 5 ? 'lead_malo' : 'handoff_malo') : 'sin_clasificar'
+
   // El sistema pasa la situación a un asesor humano en el handoff: cuando el
   // lead llega a "interesado" (aceptó avanzar) o ya fue "transferido".
   const necesitaAsesor = stage === 4 || stage === 5
@@ -161,7 +174,7 @@ export function mapLeadRowToCard(row) {
   if (esPrueba) tags.push('prueba')
   if (tier) tags.push('tier ' + tier)
   if (row.linea) tags.push(row.linea)
-  if (stage === 'reactivacion') tags.push('reactivación')
+  if (perdida) tags.push('reactivación')
 
   return {
     id: leadId,
@@ -195,6 +208,10 @@ export function mapLeadRowToCard(row) {
     tipoLead: row.tipo_lead || '',
     contexto: row.contexto || '',
     requalifyAt: row.requalify_at || '',
+    perdida,
+    perdidoAt,
+    motivoPerdida,
+    perdidaEn,
     owner,
     // Derivados para Seguimientos / handoff. La tabla no tiene columna `owner`:
     // en etapas 1–4 el responsable ES el agente (§06); de 5+ el vendedor por ciudad.
@@ -205,7 +222,7 @@ export function mapLeadRowToCard(row) {
     vendedor: stage >= 5 ? VENDEDOR_CIUDAD[row.ciudad_validada || ciudad] || '—' : null,
     proximo:
       ESTATUS_NEXT[norm(estatus)] ||
-      (stage === 'reactivacion' ? '⚠ Reactivar lead perdido' : 'Continuar la conversación'),
+      (perdida ? '⚠ Reactivar lead perdido' : 'Continuar la conversación'),
     tags,
     notes: [],
     events: [],
@@ -341,11 +358,22 @@ export function leadsKpis(cards) {
   }
 }
 
-// Motivos de pérdida (§05.3 / §13) derivados del estatus de leads perdidos.
+// Motivos de pérdida — fallback histórico (§05.3 / §13), derivado del estatus
+// de marketing. Solo se usa para leads perdidos ANTES del campo `motivo_perdida`.
 const LOSS_REASON = {
   'sin respuesta despues de enviar costos': 'Sin respuesta tras costos',
   'no esta interesado': 'No interesado',
   'se enviaron costos': 'Precio / presupuesto',
+}
+// Motivo real (resultado #8), capturado por Kenia en su junta semanal con
+// ventas — ver NocoDB `motivo_perdida` (selección única, mismos slugs de abajo).
+const MOTIVO_LABEL = {
+  precio: 'Precio / presupuesto',
+  timing: 'Timing',
+  competencia: 'Eligió competencia',
+  sin_respuesta_vendedor: 'Sin respuesta del vendedor',
+  dato_incompleto: 'Dato incompleto',
+  otro: 'Otro',
 }
 const CANAL_TONE = { whatsapp: 'golddim', web: 'gold', 'sitio web': 'gold', referido: 'green', referidos: 'green', evento: 'teal', eventos: 'teal', mailing: 'orange' }
 const CANAL_LABEL = { whatsapp: 'Meta Ads · WhatsApp', web: 'Sitio web', 'sitio web': 'Sitio web' }
@@ -396,8 +424,11 @@ export function panelModel(cards) {
 
   // ── Sección 4 · Conversión comercial (handoff) ──
   const ganadas = won
-  const enProceso = cards.filter((c) => numStage(c) >= 5 && numStage(c) < 10).length
-  const perdidas = cards.filter((c) => c.stage === 'reactivacion').length
+  // OJO: un lead perdido puede tener stage numérico 5-9 (ya no se sobreescribe
+  // `etapa` al perderlo — ver mapLeadRowToCard), por eso hay que excluir
+  // explícitamente `perdida` de "en proceso" o quedaría contado doble.
+  const enProceso = cards.filter((c) => numStage(c) >= 5 && numStage(c) < 10 && !c.perdida).length
+  const perdidas = cards.filter((c) => c.perdida).length
   const handoffTotal = ganadas + enProceso + perdidas
   const segments = [
     { label: 'Ganadas', value: ganadas, tone: 'green' },
@@ -405,11 +436,19 @@ export function panelModel(cards) {
     { label: 'Perdidas / reactivación', value: perdidas, tone: 'red' },
   ]
   const lossMap = {}
-  for (const c of cards.filter((c) => c.stage === 'reactivacion')) {
-    const r = LOSS_REASON[norm(c.estatusMkt)] || 'Sin seguimiento'
+  for (const c of cards.filter((c) => c.perdida)) {
+    const r = (c.motivoPerdida && MOTIVO_LABEL[norm(c.motivoPerdida)]) || LOSS_REASON[norm(c.estatusMkt)] || 'Sin motivo registrado'
     lossMap[r] = (lossMap[r] || 0) + 1
   }
   const lossReasons = Object.entries(lossMap).map(([reason, value]) => ({ reason, value })).sort((a, b) => b.value - a.value)
+
+  // Resultado #8: separar lead malo (se perdió antes del handoff, etapa 1-4)
+  // de handoff malo (ya estaba con vendedor, etapa 5+) — la métrica que zanja
+  // la discusión "marketing no manda calidad / ventas no cierra".
+  const leadMalo = cards.filter((c) => c.perdidaEn === 'lead_malo').length
+  const handoffMalo = cards.filter((c) => c.perdidaEn === 'handoff_malo').length
+  const sinClasificar = cards.filter((c) => c.perdidaEn === 'sin_clasificar').length
+  const clasificacionPerdida = { leadMalo, handoffMalo, sinClasificar }
 
   // ── Sección 5 · Tendencias (leads por semana según fecha) ──
   const weekMap = {}
@@ -426,7 +465,7 @@ export function panelModel(cards) {
   const weekLabels = Object.keys(weekMap).sort()
   const trend = { weekLabels, data: weekLabels.map((k) => weekMap[k]) }
 
-  return { funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons }, trend }
+  return { funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons, clasificacionPerdida }, trend }
 }
 
 const ENDPOINT = '/api/nocodb'
@@ -473,6 +512,22 @@ export async function patchLead(ncId, fields) {
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
   return data
+}
+
+// Clasificación automática de motivo_perdida (resultado #8) para leads que se
+// perdieron ANTES del handoff (etapa 1-4): lee los mensajes que el agente ya
+// registró y detecta objeciones conocidas (precio, competencia, timing, etc.)
+// sin que nadie tenga que clasificar nada a mano. Los perdidos DESPUÉS del
+// handoff no tienen mensajes que leer (el vendedor usa su propio WhatsApp,
+// fuera del sistema) — esos los sigue llenando Kenia desde su junta semanal.
+export async function clasificarObjeciones() {
+  const res = await fetch(`${ENDPOINT}?op=clasificar`, {
+    method: 'POST',
+    headers: apiHeaders({ 'content-type': 'application/json' }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data // { ok: true, clasificados: N, detalle: [{ lead_id, motivo_perdida }] }
 }
 
 // Traduce un patch de tarjeta (campos del dashboard) a columnas de NocoDB.

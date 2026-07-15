@@ -76,6 +76,67 @@ async function ncWrite(method, tableId, body) {
 }
 const ncCreate = (tableId, fields) => ncWrite('POST', tableId, fields)
 
+// Clasificación automática de motivo_perdida (resultado #8) — SOLO para leads
+// perdidos ANTES del handoff (etapa 1-4). Lee los mensajes que "Círculo WEB" ya
+// registra en la tabla Mensajes y busca objeciones conocidas (manual operativo
+// §05.3 / secuencias). Los perdidos DESPUÉS del handoff no tienen mensajes que
+// leer aquí (el vendedor usa su propio WhatsApp, fuera del sistema) y se dejan
+// sin tocar — esos los llena Kenia a mano desde su junta semanal.
+const ETAPA_NUM = {
+  nuevo: 1, 'en conversacion': 2, conversacion: 2, calificado: 3, interesado: 4,
+  transferido: 5, 'transferido a vendedor': 5, propuesta: 6, 'propuesta aprobada': 6,
+  anticipo: 7, 'anticipo recibido': 7, brief: 8, 'brief completado': 8,
+  diseno: 9, 'diseno autorizado': 9, produccion: 10, 'produccion y entrega': 10, entrega: 10,
+}
+const OBJECION_KEYWORDS = [
+  { motivo: 'precio', patterns: ['caro', 'costoso', 'descuento', 'presupuesto'] },
+  { motivo: 'competencia', patterns: ['otro tequila', 'mas barato', 'cuesta menos', 'otra marca'] },
+  { motivo: 'timing', patterns: ['consultarlo', 'despues del evento', 'mas adelante', 'lo veo despues', 'lo pensare'] },
+  { motivo: 'otro', patterns: ['maquila', 'mi propio tequila', 'envasar', 'no los conozco', 'no conozco la marca', 'solo quiero una', 'nada mas una botella'] },
+]
+const normTxt = (s) => (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+
+async function clasificarObjeciones() {
+  const [leadsRows, signalRows] = await Promise.all([fetchAll(TABLES.leads), fetchAll(TABLES.signals)])
+  const msgsByLead = {}
+  for (const m of signalRows) {
+    const f = m.fields || m
+    const lid = (f.lead_id || '').toString().trim()
+    if (!lid) continue
+    ;(msgsByLead[lid] ||= []).push(normTxt(f.texto))
+  }
+
+  const detalle = []
+  for (const row of leadsRows) {
+    const f = row.fields || row
+    const leadId = (f.lead_id || '').toString().trim()
+    if (!leadId) continue
+    if ((f.motivo_perdida || '').toString().trim()) continue // ya clasificado
+
+    const perdidoAt = (f.perdido_at || '').toString().trim()
+    const estado = (f.estado || '').toString().trim()
+    const etapaN = normTxt(f.etapa)
+    const stage = ETAPA_NUM[etapaN] ?? null
+    const perdida = !!perdidoAt || estado === 'cerrado_sin_respuesta' || etapaN === 'perdido' || etapaN === 'reactivacion'
+    const esPreHandoff = stage != null ? stage < 5 : true // si no hay etapa mapeada, se asume aún no transferido
+    if (!perdida || !esPreHandoff) continue
+
+    const textos = (msgsByLead[leadId] || []).join(' \n ')
+    let motivo = null
+    for (const { motivo: m, patterns } of OBJECION_KEYWORDS) {
+      if (patterns.some((p) => textos.includes(p))) { motivo = m; break }
+    }
+    if (!motivo) motivo = 'otro' // sin palabra clave clara (silencio u otro motivo no mapeado)
+
+    const fields = { motivo_perdida: motivo }
+    if (!perdidoAt) fields.perdido_at = new Date().toISOString().slice(0, 16).replace('T', ' ')
+    const r = await ncWrite('PATCH', TABLES.leads, { Id: row.Id ?? row.id, ...fields })
+    if (r.ok) detalle.push({ lead_id: leadId, motivo_perdida: motivo })
+    else console.error('clasificar patch error', leadId, r.status)
+  }
+  return detalle
+}
+
 async function fetchAll(tableId) {
   const rows = []
   let page = 1
@@ -96,11 +157,37 @@ async function fetchAll(tableId) {
   return rows
 }
 
+// Verifica que la llamada venga del Cron Scheduler de Vercel (no de cualquiera
+// que adivine la URL). Vercel manda "Authorization: Bearer <CRON_SECRET>" solo
+// en las llamadas que él mismo dispara, cuando CRON_SECRET está configurado en
+// Settings → Environment Variables. Sin esa variable, el cron simplemente no
+// puede ejecutar la clasificación (falla cerrado, no abierto).
+const CRON_SECRET = (process.env.CRON_SECRET || '').trim()
+function esLlamadaDeCron(req) {
+  if (!CRON_SECRET) return false
+  return safeEqual((req.headers.authorization || '').toString(), `Bearer ${CRON_SECRET}`)
+}
+
 export default async function handler(req, res) {
   // Cabeceras de seguridad en toda respuesta.
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Referrer-Policy', 'no-referrer')
   res.setHeader('X-Frame-Options', 'DENY')
+
+  // Cron semanal (vercel.json → GET /api/nocodb?op=clasificar). Se valida ANTES
+  // del candado normal porque el Cron Scheduler no manda el header x-app-key —
+  // manda su propio Bearer verificado arriba.
+  if (req.method === 'GET' && (req.query?.op || '') === 'clasificar') {
+    if (!esLlamadaDeCron(req)) { res.status(401).json({ error: 'No autorizado.' }); return }
+    try {
+      const detalle = await clasificarObjeciones()
+      res.status(200).json({ ok: true, origen: 'cron', clasificados: detalle.length, detalle })
+    } catch (e) {
+      console.error('clasificar (cron) error', e)
+      res.status(502).json({ error: 'No se pudo clasificar objeciones' })
+    }
+    return
+  }
 
   // Candado deny-by-default (aplica a TODO, incluido diag) cuando hay APP_KEY.
   if (APP_KEY && !safeEqual((req.headers['x-app-key'] || '').toString(), APP_KEY)) {
@@ -133,6 +220,20 @@ export default async function handler(req, res) {
     return
   }
   const resource = (req.query?.resource || 'leads').toString()
+  const op = (req.query?.op || '').toString()
+
+  // Clasificación automática de motivo_perdida (resultado #8), solo pre-handoff.
+  // POST /api/nocodb?op=clasificar
+  if (req.method === 'POST' && op === 'clasificar') {
+    try {
+      const detalle = await clasificarObjeciones()
+      res.status(200).json({ ok: true, clasificados: detalle.length, detalle })
+    } catch (e) {
+      console.error('clasificar error', e)
+      res.status(502).json({ error: 'No se pudo clasificar objeciones' })
+    }
+    return
+  }
 
   // Escritura: crear una nota de prueba (compartida). POST /api/nocodb?resource=notas
   if (req.method === 'POST') {

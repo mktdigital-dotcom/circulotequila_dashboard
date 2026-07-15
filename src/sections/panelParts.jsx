@@ -1,6 +1,7 @@
 // Piezas reutilizables del tablero, cada una alimentada por datos reales de
 // NocoDB (con fallback a cifras de referencia). Se reparten en las secciones
 // que pidió el negocio: Embudo, Canales, Conversión y Tendencias.
+import { useState } from 'react'
 import {
   periods,
   leakIndex,
@@ -10,7 +11,7 @@ import {
   lossReasons as lossStatic,
   trends,
 } from '../data/circulo.js'
-import { leadsKpis, panelModel } from '../data/live.js'
+import { leadsKpis, panelModel, clasificarObjeciones } from '../data/live.js'
 import { TrendLine } from '../components/Charts.jsx'
 
 const TIER_COLOR = { A: 'var(--green)', B: 'var(--gold)', C: 'var(--blue)', D: 'var(--red)' }
@@ -155,6 +156,21 @@ export function HandoffCard({ live }) {
   const pm = usePanel(live)
   const ho = pm ? pm.handoff : handoffStatic
   const losses = pm ? pm.handoff.lossReasons : lossStatic
+  const [clasificando, setClasificando] = useState(false)
+  const [resultado, setResultado] = useState(null)
+  const clasificar = async () => {
+    setClasificando(true)
+    setResultado(null)
+    try {
+      const r = await clasificarObjeciones()
+      setResultado(`Se clasificaron ${r.clasificados} leads.`)
+      live?.refresh?.()
+    } catch (e) {
+      setResultado('Error: ' + e.message)
+    } finally {
+      setClasificando(false)
+    }
+  }
   return (
     <div className="card">
       <div className="card__head">
@@ -186,6 +202,28 @@ export function HandoffCard({ live }) {
           <div className="loss__row"><span className="muted">Sin pérdidas registradas</span><span>0</span></div>
         )}
       </div>
+      {pm && (ho.clasificacionPerdida.leadMalo + ho.clasificacionPerdida.handoffMalo + ho.clasificacionPerdida.sinClasificar > 0) && (
+        <div className="loss">
+          <div className="loss__title">Dónde se perdió (resultado #8)</div>
+          <div className="loss__row"><span>Lead malo (antes del handoff)</span><span>{ho.clasificacionPerdida.leadMalo}</span></div>
+          <div className="loss__row"><span>Handoff malo (ya con vendedor)</span><span>{ho.clasificacionPerdida.handoffMalo}</span></div>
+          {ho.clasificacionPerdida.sinClasificar > 0 && (
+            <div className="loss__row"><span className="muted">Sin clasificar (histórico)</span><span>{ho.clasificacionPerdida.sinClasificar}</span></div>
+          )}
+        </div>
+      )}
+      {pm && (
+        <div className="loss">
+          <button className="btn-export" onClick={clasificar} disabled={clasificando}>
+            {clasificando ? 'Clasificando…' : 'Clasificar objeciones automáticamente'}
+          </button>
+          <div className="muted" style={{ marginTop: 4, fontSize: 12 }}>
+            Lee las conversaciones y llena el motivo de los leads perdidos ANTES del handoff.
+            Los perdidos después del handoff los sigue llenando Kenia a mano.
+          </div>
+          {resultado && <div className="loss__row"><span>{resultado}</span></div>}
+        </div>
+      )}
     </div>
   )
 }
