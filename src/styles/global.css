@@ -1333,6 +1333,12 @@ a {
   border-color: transparent;
   font-weight: 600;
 }
+.ktag--conasesor {
+  color: #0d2417;
+  background: var(--green);
+  border-color: transparent;
+  font-weight: 600;
+}
 .asesor-banner {
   margin: 12px 0 4px;
   padding: 10px 13px;

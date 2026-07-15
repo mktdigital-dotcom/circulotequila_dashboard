@@ -349,8 +349,14 @@ function Column({ stage, board, match, overStage, setOverStage, onDrop, onDragSt
             {(c.tags?.length > 0 || c.notasLive?.length > 0) && (
               <div className="kcard__tags">
                 {(c.tags || []).map((t) => (
-                  <span key={t} className={'ktag' + (t === 'reactivación' ? ' ktag--react' : t === 'necesita asesor' ? ' ktag--asesor' : '')}>
-                    {t === 'necesita asesor' ? '🙋 necesita asesor' : t}
+                  <span
+                    key={t}
+                    className={
+                      'ktag' +
+                      (t === 'reactivación' ? ' ktag--react' : t === 'necesita asesor' ? ' ktag--asesor' : t === 'con asesor' ? ' ktag--conasesor' : '')
+                    }
+                  >
+                    {t === 'necesita asesor' ? '🙋 necesita asesor' : t === 'con asesor' ? '✅ con asesor' : t}
                   </span>
                 ))}
                 {c.notasLive?.length > 0 && <span className="ktag ktag--note">✎ {c.notasLive.length}</span>}

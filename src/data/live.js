@@ -168,9 +168,14 @@ export function mapLeadRowToCard(row) {
   // El sistema pasa la situación a un asesor humano en el handoff: cuando el
   // lead llega a "interesado" (aceptó avanzar) o ya fue "transferido".
   const necesitaAsesor = stage === 4 || stage === 5
+  // Distinción visual: "necesita asesor" (etapa 4, aún esperando) vs "con
+  // asesor" (etapa 5+, ya lo atendieron — moverlo en el pipeline a Ventas es
+  // justo lo que dispara este cambio).
+  const conAsesor = typeof stage === 'number' && stage >= 5
 
   const tags = []
-  if (necesitaAsesor) tags.push('necesita asesor')
+  if (conAsesor) tags.push('con asesor')
+  else if (necesitaAsesor) tags.push('necesita asesor')
   if (esPrueba) tags.push('prueba')
   if (tier) tags.push('tier ' + tier)
   if (row.linea) tags.push(row.linea)
