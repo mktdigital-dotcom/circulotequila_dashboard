@@ -241,6 +241,28 @@ export function mapLeadRowToCard(row) {
 export const ESCALA_ASESOR_RE =
   /(canaliz|un asesor se|asesor se pondra|asesor se comunicar|asesor se contactar|te paso con un asesor|con uno de nuestros asesores|un asesor te|pondra en contacto|se pondra en contacto|asesor.{0,20}(contacto|contigo|comunicar)|contactar.{0,15}asesor)/
 
+// Motivo del asesor (para decidir rápido sin leer todo el chat): busca en lo
+// que pidió el CLIENTE la razón real del escalamiento — no en lo que contesta
+// el agente, que siempre dice lo mismo ("un asesor se pondrá en contacto...").
+const RAZON_ASESOR_KEYWORDS = [
+  { razon: 'descuento', patterns: ['descuento', 'rebaja', 'promocion', 'condiciones especiales', 'mejor precio'] },
+  { razon: 'llamada', patterns: ['llamada', 'videollamada', 'una reunion', 'una cita', 'hablar por telefono'] },
+  { razon: 'inventario/fechas', patterns: ['inventario', 'disponibilidad', 'cuando llega', 'fecha exacta', 'tienen en stock', 'cuanto tardan', 'para cuando'] },
+  { razon: 'pago', patterns: ['como pago', 'link de pago', 'transferencia', 'quiero pagar', 'el anticipo'] },
+  { razon: 'proyecto especial', patterns: ['hotel', 'boda', 'congreso', 'mayoreo', 'evento grande', 'volumen especial'] },
+  { razon: 'cotización', patterns: ['cotizacion', 'cotizame', 'quiero comprar', 'hacer un pedido'] },
+]
+export function razonAsesor(events) {
+  const textoCliente = (events || [])
+    .filter((ev) => !/agent|bot|sistema/i.test(ev.actor || ev.tipo || ''))
+    .map((ev) => norm(ev.e || ev.text || ''))
+    .join(' \n ')
+  for (const { razon, patterns } of RAZON_ASESOR_KEYWORDS) {
+    if (patterns.some((p) => textoCliente.includes(p))) return razon
+  }
+  return null
+}
+
 // ¿Alguna respuesta del AGENTE escala a un asesor? (revisa la conversación)
 export function conversacionEscalaAsesor(events) {
   return (events || []).some((ev) => {
@@ -275,6 +297,14 @@ function attachSignals(cards, signalRows) {
       enriched.necesitaAsesor = true
       if (!(enriched.tags || []).includes('necesita asesor')) {
         enriched.tags = ['necesita asesor', ...(enriched.tags || [])]
+      }
+    }
+    // Motivo del asesor en la propia etiqueta (facilita decidir sin abrir el
+    // chat): "necesita asesor" pasa a "necesita asesor · descuento", etc.
+    if ((enriched.tags || []).includes('necesita asesor')) {
+      const razon = razonAsesor(evs)
+      if (razon) {
+        enriched.tags = enriched.tags.map((t) => (t === 'necesita asesor' ? `necesita asesor · ${razon}` : t))
       }
     }
     // Fallback de atribución: si NocoDB aún no trae `campaña`, deducirla de la

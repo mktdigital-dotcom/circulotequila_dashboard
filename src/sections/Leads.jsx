@@ -353,10 +353,10 @@ function Column({ stage, board, match, overStage, setOverStage, onDrop, onDragSt
                     key={t}
                     className={
                       'ktag' +
-                      (t === 'reactivación' ? ' ktag--react' : t === 'necesita asesor' ? ' ktag--asesor' : t === 'con asesor' ? ' ktag--conasesor' : '')
+                      (t === 'reactivación' ? ' ktag--react' : t.startsWith('necesita asesor') ? ' ktag--asesor' : t === 'con asesor' ? ' ktag--conasesor' : '')
                     }
                   >
-                    {t === 'necesita asesor' ? '🙋 necesita asesor' : t === 'con asesor' ? '✅ con asesor' : t}
+                    {t.startsWith('necesita asesor') ? '🙋 ' + t : t === 'con asesor' ? '✅ con asesor' : t}
                   </span>
                 ))}
                 {c.notasLive?.length > 0 && <span className="ktag ktag--note">✎ {c.notasLive.length}</span>}
