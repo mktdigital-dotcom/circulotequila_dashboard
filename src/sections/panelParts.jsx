@@ -116,7 +116,7 @@ export function ChannelsCard({ live, period = 'mes' }) {
   return (
     <div className="card">
       <div className="card__head">
-        <span className="card__tag">Pregunta 3{pm ? ' · datos reales' : ''}</span>
+        <span className="card__tag">Pregunta 3{pm ? ' · datos reales' : ' · ejemplo'}</span>
         <span className="card__q">De dónde vienen los leads</span>
       </div>
       <div className="bars__lbl">Por origen / campaña</div>
@@ -174,7 +174,7 @@ export function HandoffCard({ live }) {
   return (
     <div className="card">
       <div className="card__head">
-        <span className="card__tag">Pregunta 2{pm ? ' · datos reales' : ''}</span>
+        <span className="card__tag">Pregunta 2{pm ? ' · datos reales' : ' · ejemplo'}</span>
         <span className="card__q">Qué pasó tras el handoff</span>
       </div>
       <div className="handoff__big">
@@ -236,7 +236,7 @@ export function TrendsCard({ live }) {
   return (
     <div className="card trendcard">
       <div className="card__head">
-        <span className="card__title">§ tendencias · leads por semana{pm ? ' · reales' : ''}</span>
+        <span className="card__title">§ tendencias · leads por semana{pm ? ' · reales' : ' · ejemplo'}</span>
       </div>
       <TrendLine data={data} color="#e6b35a" />
       <div className="trend-x">{labels.map((w) => (<span key={w}>{w}</span>))}</div>

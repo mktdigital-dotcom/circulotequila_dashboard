@@ -18,7 +18,7 @@ export default function Embudo({ live, board = [], query = '', period = 'mes' })
 
         <div className="card card--pad-lg">
           <div className="card__head">
-            <span className="card__tag">Pregunta 1</span>
+            <span className="card__tag">Pregunta 1{f.showLeak ? ' · ejemplo' : ' · datos reales'}</span>
             <span className="card__q">Cuántos generamos, cuántos calificaron, cuántos llegaron a ventas</span>
           </div>
           <Funnel stages={f.stages} showLeak={f.showLeak} />
