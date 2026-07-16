@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMetaAds } from '../data/meta.js'
+import { matchLeadsConMetaAds } from '../data/live.js'
 import { Head } from './panelParts.jsx'
 
 const RANGOS = [
@@ -22,10 +23,12 @@ function Tile({ label, value, accent }) {
   )
 }
 
-export default function Anuncios() {
+export default function Anuncios({ live }) {
   const [range, setRange] = useState('30d')
   const { data, loading, error } = useMetaAds(range)
   const total = data?.total
+  const cruce = data?.anuncios ? matchLeadsConMetaAds(live?.leads, data.anuncios) : null
+  const filasCruce = cruce ? Object.fromEntries(cruce.filas.map((f) => [f.adId, f])) : {}
 
   return (
     <section>
@@ -78,6 +81,14 @@ export default function Anuncios() {
           <div className="card__head">
             <span className="card__title">§ por anuncio · {data.cuenta}</span>
           </div>
+          {cruce && (
+            <p className="bar__meta" style={{ marginTop: 0, marginLeft: 0, marginBottom: 12 }}>
+              Cruce con leads reales de NocoDB por ad_id:{' '}
+              {cruce.cobertura.pct == null
+                ? 'sin leads con anuncio detectado todavía.'
+                : `${cruce.cobertura.leadsMatcheados} de ${cruce.cobertura.leadsConAnuncio} leads con anuncio detectado hacen match (${cruce.cobertura.pct}%). El resto quedó sin ad_id real guardado — issue abierto en KAIZEN para JP.`}
+            </p>
+          )}
           <div className="ads-table-wrap">
             <table className="ads-table">
               <thead>
@@ -85,32 +96,41 @@ export default function Anuncios() {
                   <th>Anuncio</th>
                   <th>Campaña</th>
                   <th className="r">Gasto</th>
-                  <th className="r">Mensajes</th>
-                  <th className="r">Costo/msg</th>
+                  <th className="r">Mensajes (Meta)</th>
+                  <th className="r">Leads reales</th>
+                  <th className="r">Tier A</th>
+                  <th className="r">Costo/lead real</th>
                   <th className="r">Alcance</th>
                   <th className="r">Clics</th>
                   <th className="r">CTR</th>
                 </tr>
               </thead>
               <tbody>
-                {data.anuncios.map((a) => (
-                  <tr key={a.adId}>
-                    <td>{a.anuncio}</td>
-                    <td className="muted">{a.campana || '—'}</td>
-                    <td className="r">{fmtMoney(a.gasto)}</td>
-                    <td className="r">{fmtNum(a.mensajes)}</td>
-                    <td className="r">{fmtMoney(a.cpl)}</td>
-                    <td className="r">{fmtNum(a.alcance)}</td>
-                    <td className="r">{fmtNum(a.clics)}</td>
-                    <td className="r">{a.ctr != null ? Number(a.ctr).toFixed(2) + '%' : '—'}</td>
-                  </tr>
-                ))}
+                {data.anuncios.map((a) => {
+                  const f = filasCruce[a.adId]
+                  return (
+                    <tr key={a.adId}>
+                      <td>{a.anuncio}</td>
+                      <td className="muted">{a.campana || '—'}</td>
+                      <td className="r">{fmtMoney(a.gasto)}</td>
+                      <td className="r">{fmtNum(a.mensajes)}</td>
+                      <td className="r">{f ? fmtNum(f.leadsReales) : '—'}</td>
+                      <td className="r">{f ? fmtNum(f.tierA) : '—'}</td>
+                      <td className="r">{f?.cplReal != null ? fmtMoney(f.cplReal) : '—'}</td>
+                      <td className="r">{fmtNum(a.alcance)}</td>
+                      <td className="r">{fmtNum(a.clics)}</td>
+                      <td className="r">{a.ctr != null ? Number(a.ctr).toFixed(2) + '%' : '—'}</td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
           <p className="bar__meta" style={{ marginTop: 14, marginLeft: 0 }}>
-            "Mensajes" = conversaciones de WhatsApp iniciadas desde el anuncio (leads). El costo por
-            mensaje es tu costo por lead real de cada anuncio.
+            "Mensajes (Meta)" = conversaciones iniciadas que reporta Meta. "Leads reales" = leads que sí
+            llegaron a NocoDB con el ad_id de este anuncio — son números distintos a propósito: Meta
+            cuenta inicios de conversación, NocoDB cuenta leads que además contestaron. "Costo/lead real"
+            divide el gasto del anuncio entre esos leads reales, no entre los mensajes que reporta Meta.
           </p>
         </div>
       )}

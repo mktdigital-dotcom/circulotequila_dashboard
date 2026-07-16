@@ -141,7 +141,7 @@ export default function App() {
     embudo: <Embudo live={live} board={board} query={query} period={period} />,
     leads: <Leads board={board} setBoard={setBoard} query={query} />,
     tendencias: <Tendencias live={live} />,
-    anuncios: <Anuncios />,
+    anuncios: <Anuncios live={live} />,
     agente: <Agente onLead={upsertLead} goToPipeline={() => setSection('leads')} />,
   }
 

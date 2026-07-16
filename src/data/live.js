@@ -676,3 +676,37 @@ export function useLiveLeads({ pollMs = 30000 } = {}) {
 
   return { leads, loading, error, lastUpdated, refresh }
 }
+
+// Cruza los leads reales (NocoDB) con los anuncios reales de Meta (Marketing
+// API), por ad_id — el único identificador que existe en ambos lados. El join
+// solo alcanza a los leads donde n8n guardó el ad_id real en `anuncio`; hoy eso
+// NO siempre pasa (si el referral trae headline, el ad_id real se descarta —
+// gap real, reportado a KAIZEN para JP). Por eso se expone `cobertura`: para
+// no esconder qué tan completo está el cruce mientras eso no se arregle.
+export function matchLeadsConMetaAds(cards, metaAnuncios) {
+  const porAdId = {}
+  for (const c of cards || []) {
+    const a = (c.anuncio || '').toString().trim()
+    if (!a) continue
+    ;(porAdId[a] ||= []).push(c)
+  }
+  const filas = (metaAnuncios || []).map((ad) => {
+    const leads = porAdId[ad.adId] || []
+    return {
+      ...ad,
+      leadsReales: leads.length,
+      tierA: leads.filter((l) => l.tier === 'A').length,
+      tierB: leads.filter((l) => l.tier === 'B').length,
+      cplReal: leads.length ? Number((ad.gasto / leads.length).toFixed(2)) : null,
+    }
+  })
+  const leadsConAnuncio = (cards || []).filter((c) => (c.anuncio || '').toString().trim())
+  const idsMeta = new Set((metaAnuncios || []).map((a) => a.adId))
+  const matcheados = leadsConAnuncio.filter((c) => idsMeta.has((c.anuncio || '').toString().trim()))
+  const cobertura = {
+    leadsConAnuncio: leadsConAnuncio.length,
+    leadsMatcheados: matcheados.length,
+    pct: leadsConAnuncio.length ? Math.round((matcheados.length / leadsConAnuncio.length) * 100) : null,
+  }
+  return { filas, cobertura }
+}
