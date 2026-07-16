@@ -7,10 +7,18 @@
 //
 // Variables en Vercel:
 //   META_ACCESS_TOKEN    = token de la App de Meta (ads_read)          (obligatorio)
-//   META_AD_ACCOUNT_ID   = act_637824170121322  (con o sin "act_")     (obligatorio)
+//   META_AD_ACCOUNT_ID   = act_3378200975740475  (con o sin "act_")    (obligatorio)
 //   META_APP_ID          = App ID                                       (opcional)
 //   META_API_VERSION     = v21.0 (por defecto)                          (opcional)
 //   DASHBOARD_TOKEN      = candado del dashboard (mismo que /api/nocodb)(recomendado)
+//
+// OJO: el valor de META_AD_ACCOUNT_ID de arriba es solo referencia — la cuenta
+// real vigente puede cambiar. Este archivo SIEMPRE la lee de la variable de
+// entorno (nunca la tiene hardcodeada), así que el dashboard nunca se desfasa.
+// Si vas a usar esta cuenta en OTRO lugar (ej. un nodo de n8n), no copies el
+// número de este comentario — confírmalo primero en Vercel, por si cambió
+// (16 jul 2026: este comentario decía act_637824170121322, viejo, y causó
+// un "Forbidden ads_read" en n8n al copiarlo de aquí en vez de Vercel).
 // ─────────────────────────────────────────────────────────────────────────────
 import { timingSafeEqual } from 'node:crypto'
 
