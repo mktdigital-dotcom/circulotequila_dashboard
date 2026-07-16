@@ -147,14 +147,35 @@ export default async function handler(req, res) {
       return
     }
 
+    // Estado real (activo/pausado/etc.) — la insights de arriba es histórica por
+    // rango de fechas y NO trae si el anuncio sigue corriendo hoy. Se pide aparte
+    // al edge /ads (sin filtro, para ver también los pausados/históricos en esta
+    // tabla — el filtro a "solo activos" vive en n8n, para el match del lead que
+    // entra, no acá). Si esta consulta falla, no tumba la respuesta principal:
+    // los anuncios simplemente quedan con estado "desconocido".
+    let estadoPorAdId = {}
+    try {
+      const urlEstado = `${GRAPH}/${VERSION}/${ACCOUNT}/ads?fields=id,effective_status&limit=500&access_token=${encodeURIComponent(TOKEN)}`
+      const rEstado = await fetch(urlEstado, { headers: { accept: 'application/json' } })
+      const dEstado = await rEstado.json().catch(() => ({}))
+      if (rEstado.ok && !dEstado.error) {
+        estadoPorAdId = Object.fromEntries((dEstado.data || []).map((a) => [a.id, a.effective_status || '']))
+      }
+    } catch {
+      // Sin estado disponible — se deja "desconocido" abajo, no se rompe nada.
+    }
+
     const rows = (data.data || []).map((a) => {
       const spend = num(a.spend)
       const mensajes = mensajesDe(a.actions)
+      const estado = estadoPorAdId[a.ad_id] || 'desconocido'
       return {
         adId: a.ad_id || '',
         anuncio: a.ad_name || '(sin nombre)',
         campana: a.campaign_name || '',
         conjunto: a.adset_name || '',
+        estado,
+        activo: estado === 'ACTIVE',
         gasto: spend,
         impresiones: num(a.impressions),
         clics: num(a.clicks),
@@ -170,6 +191,7 @@ export default async function handler(req, res) {
     const sum = (k) => rows.reduce((s, x) => s + (x[k] || 0), 0)
     const total = {
       anuncios: rows.length,
+      activos: rows.filter((r) => r.activo).length,
       gasto: Number(sum('gasto').toFixed(2)),
       impresiones: sum('impresiones'),
       clics: sum('clics'),

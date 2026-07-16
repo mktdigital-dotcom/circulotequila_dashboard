@@ -14,6 +14,22 @@ const fmtMoney = (n) =>
   n == null ? '—' : '$' + Number(n).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString('es-MX'))
 
+const ESTADO_LABEL = {
+  ACTIVE: 'Activo',
+  PAUSED: 'Pausado',
+  CAMPAIGN_PAUSED: 'Pausado (campaña)',
+  ADSET_PAUSED: 'Pausado (conjunto)',
+  ARCHIVED: 'Archivado',
+  DELETED: 'Eliminado',
+  PENDING_REVIEW: 'En revisión',
+  DISAPPROVED: 'Rechazado',
+  desconocido: 'Sin dato',
+}
+function EstadoBadge({ estado }) {
+  const color = estado === 'ACTIVE' ? 'var(--green)' : estado === 'desconocido' ? 'var(--muted)' : 'var(--red)'
+  return <span style={{ color, fontWeight: 600, fontSize: 12 }}>{ESTADO_LABEL[estado] || estado}</span>
+}
+
 function Tile({ label, value, accent }) {
   return (
     <div className="lk-tile">
@@ -30,6 +46,10 @@ export default function Anuncios({ live }) {
   const cruce = data?.anuncios ? matchLeadsConMetaAds(live?.leads, data.anuncios) : null
   const filasCruce = cruce ? Object.fromEntries(cruce.filas.map((f) => [f.adId, f])) : {}
   const cruceCiudad = data?.anuncios ? matchCiudadesConMetaAds(live?.leads, data.anuncios) : null
+  // Activos primero (lo que importa para decidir hoy), luego el histórico por gasto.
+  const anunciosOrdenados = data?.anuncios
+    ? [...data.anuncios].sort((a, b) => (b.activo === a.activo ? (b.gasto || 0) - (a.gasto || 0) : b.activo ? 1 : -1))
+    : []
 
   return (
     <section>
@@ -73,6 +93,7 @@ export default function Anuncios({ live }) {
             <Tile label="alcance" value={fmtNum(total.alcance)} />
             <Tile label="clics" value={fmtNum(total.clics)} />
             <Tile label="anuncios" value={fmtNum(total.anuncios)} />
+            <Tile label="activos ahora" value={fmtNum(total.activos)} accent="var(--green)" />
           </div>
         )}
       </div>
@@ -137,6 +158,7 @@ export default function Anuncios({ live }) {
               <thead>
                 <tr>
                   <th>Anuncio</th>
+                  <th>Estado</th>
                   <th>Campaña</th>
                   <th className="r">Gasto</th>
                   <th className="r">Mensajes (Meta)</th>
@@ -149,11 +171,12 @@ export default function Anuncios({ live }) {
                 </tr>
               </thead>
               <tbody>
-                {data.anuncios.map((a) => {
+                {anunciosOrdenados.map((a) => {
                   const f = filasCruce[a.adId]
                   return (
                     <tr key={a.adId}>
                       <td>{a.anuncio}</td>
+                      <td><EstadoBadge estado={a.estado} /></td>
                       <td className="muted">{a.campana || '—'}</td>
                       <td className="r">{fmtMoney(a.gasto)}</td>
                       <td className="r">{fmtNum(a.mensajes)}</td>
