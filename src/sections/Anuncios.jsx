@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMetaAds } from '../data/meta.js'
-import { matchLeadsConMetaAds } from '../data/live.js'
+import { matchLeadsConMetaAds, matchCiudadesConMetaAds } from '../data/live.js'
 import { Head } from './panelParts.jsx'
 
 const RANGOS = [
@@ -29,6 +29,7 @@ export default function Anuncios({ live }) {
   const total = data?.total
   const cruce = data?.anuncios ? matchLeadsConMetaAds(live?.leads, data.anuncios) : null
   const filasCruce = cruce ? Object.fromEntries(cruce.filas.map((f) => [f.adId, f])) : {}
+  const cruceCiudad = data?.anuncios ? matchCiudadesConMetaAds(live?.leads, data.anuncios) : null
 
   return (
     <section>
@@ -75,6 +76,48 @@ export default function Anuncios({ live }) {
           </div>
         )}
       </div>
+
+      {cruceCiudad && (
+        <div className="card card--pad-lg" style={{ marginTop: 18 }}>
+          <div className="card__head">
+            <span className="card__title">§ rendimiento real por ciudad</span>
+          </div>
+          <p className="bar__meta" style={{ marginTop: 0, marginLeft: 0, marginBottom: 12 }}>
+            Ciudad = la que detecta el agente por la frase de apertura (§04 del manual operativo) o la que
+            confirma el lead cuando se le pregunta directo. Se cruza contra qué campaña/conjunto de Meta
+            menciona esa ciudad por nombre — no depende del ad_id del referral de WhatsApp.
+            {cruceCiudad.totalLeads > 0 && (
+              <> {cruceCiudad.leadsSinCiudadReconocida} de {cruceCiudad.totalLeads} leads sin ciudad de las 4 conocidas (GDL/CDMX/Riviera Maya/SLP) — quedan fuera de este cruce.</>
+            )}
+          </p>
+          <div className="ads-table-wrap">
+            <table className="ads-table">
+              <thead>
+                <tr>
+                  <th>Ciudad</th>
+                  <th className="r">Campañas de Meta que la mencionan</th>
+                  <th className="r">Gasto real</th>
+                  <th className="r">Leads reales</th>
+                  <th className="r">Tier A</th>
+                  <th className="r">Costo/lead real</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cruceCiudad.filas.map((f) => (
+                  <tr key={f.ciudad}>
+                    <td>{f.ciudad}</td>
+                    <td className="r muted" title={f.anuncios.join(', ') || 'sin campaña detectada con ese nombre'}>{f.numAnuncios}</td>
+                    <td className="r">{fmtMoney(f.gasto)}</td>
+                    <td className="r">{fmtNum(f.leadsReales)}</td>
+                    <td className="r">{fmtNum(f.tierA)}</td>
+                    <td className="r">{f.cplReal != null ? fmtMoney(f.cplReal) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {data?.anuncios?.length > 0 && (
         <div className="card card--pad-lg" style={{ marginTop: 18 }}>

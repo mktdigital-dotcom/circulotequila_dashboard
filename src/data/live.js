@@ -710,3 +710,49 @@ export function matchLeadsConMetaAds(cards, metaAnuncios) {
   }
   return { filas, cobertura }
 }
+
+// Cruce PRINCIPAL (decisión de Libia, 16 jul): por CIUDAD, no por ad_id — el
+// ad_id depende de que WhatsApp mande el referral, que es frágil. La ciudad la
+// detecta el agente con las frases de Kenia (§04 del manual operativo: "quiero
+// información" → GDL, etc.) o preguntando directo si no queda clara — ya es
+// dato confiable en NocoDB (`ciudad`/`ciudad_validada`). Acá solo se cruza esa
+// ciudad contra qué campaña/conjunto de Meta la menciona por nombre.
+const CIUDAD_ALIASES = {
+  GDL: ['gdl', 'guadalajara', 'jalisco'],
+  CDMX: ['cdmx', 'ciudad de mexico', 'mexico city', ' df '],
+  'Riviera Maya': ['riviera maya', 'cancun', 'playa del carmen', 'quintana roo', ' rm '],
+  SLP: ['slp', 'san luis potosi'],
+}
+export function matchCiudadesConMetaAds(cards, metaAnuncios) {
+  const leadsPorCiudad = {}
+  for (const c of cards || []) {
+    const ciu = (c.ciudadValidada || c.ciudad || '').toString().trim()
+    if (!ciu || ciu === '—') continue
+    ;(leadsPorCiudad[ciu] ||= []).push(c)
+  }
+  const filas = Object.entries(CIUDAD_ALIASES).map(([ciudad, aliases]) => {
+    const anunciosDeEstaCiudad = (metaAnuncios || []).filter((a) => {
+      const texto = ' ' + norm(`${a.campana || ''} ${a.conjunto || ''}`) + ' '
+      return aliases.some((al) => texto.includes(al))
+    })
+    const gasto = anunciosDeEstaCiudad.reduce((s, a) => s + (a.gasto || 0), 0)
+    const mensajesMeta = anunciosDeEstaCiudad.reduce((s, a) => s + (a.mensajes || 0), 0)
+    const leads = leadsPorCiudad[ciudad] || []
+    return {
+      ciudad,
+      anuncios: anunciosDeEstaCiudad.map((a) => a.anuncio),
+      numAnuncios: anunciosDeEstaCiudad.length,
+      gasto: Number(gasto.toFixed(2)),
+      mensajesMeta,
+      leadsReales: leads.length,
+      tierA: leads.filter((l) => l.tier === 'A').length,
+      cplReal: leads.length ? Number((gasto / leads.length).toFixed(2)) : null,
+    }
+  })
+  const totalLeads = (cards || []).length
+  const leadsSinCiudadReconocida = (cards || []).filter((c) => {
+    const ciu = (c.ciudadValidada || c.ciudad || '').toString().trim()
+    return !ciu || ciu === '—' || !CIUDAD_ALIASES[ciu]
+  }).length
+  return { filas, totalLeads, leadsSinCiudadReconocida }
+}
