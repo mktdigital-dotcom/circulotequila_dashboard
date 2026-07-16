@@ -16,13 +16,7 @@ const fmtNum = (n) => (n == null ? '—' : Number(n).toLocaleString('es-MX'))
 
 const ESTADO_LABEL = {
   ACTIVE: 'Activo',
-  PAUSED: 'Pausado',
-  CAMPAIGN_PAUSED: 'Pausado (campaña)',
-  ADSET_PAUSED: 'Pausado (conjunto)',
-  ARCHIVED: 'Archivado',
-  DELETED: 'Eliminado',
-  PENDING_REVIEW: 'En revisión',
-  DISAPPROVED: 'Rechazado',
+  historico: 'Histórico / no activo',
   desconocido: 'Sin dato',
 }
 function EstadoBadge({ estado }) {

@@ -148,18 +148,22 @@ export default async function handler(req, res) {
     }
 
     // Estado real (activo/pausado/etc.) — la insights de arriba es histórica por
-    // rango de fechas y NO trae si el anuncio sigue corriendo hoy. Se pide aparte
-    // al edge /ads (sin filtro, para ver también los pausados/históricos en esta
-    // tabla — el filtro a "solo activos" vive en n8n, para el match del lead que
-    // entra, no acá). Si esta consulta falla, no tumba la respuesta principal:
-    // los anuncios simplemente quedan con estado "desconocido".
-    let estadoPorAdId = {}
+    // rango de fechas y NO trae si el anuncio sigue corriendo hoy. En vez de
+    // pedirlo al edge /ads (que dio "Forbidden ads_read" con este mismo token —
+    // permiso distinto al de /insights, que sí funciona), se hace una SEGUNDA
+    // consulta a /insights con filtering=ad.effective_status IN [ACTIVE]: mismo
+    // endpoint que ya sabemos que funciona, solo que filtrado. Los ad_id que
+    // aparecen ahí son los activos; el resto queda como histórico/pausado. Si
+    // esta consulta falla, no tumba la respuesta principal — los anuncios
+    // simplemente quedan con estado "desconocido".
+    let idsActivos = new Set()
     try {
-      const urlEstado = `${GRAPH}/${VERSION}/${ACCOUNT}/ads?fields=id,effective_status&limit=500&access_token=${encodeURIComponent(TOKEN)}`
+      const filtroActivos = encodeURIComponent(JSON.stringify([{ field: 'ad.effective_status', operator: 'IN', value: ['ACTIVE'] }]))
+      const urlEstado = `${GRAPH}/${VERSION}/${ACCOUNT}/insights?level=ad&fields=ad_id&filtering=${filtroActivos}&date_preset=${preset}&limit=500&access_token=${encodeURIComponent(TOKEN)}`
       const rEstado = await fetch(urlEstado, { headers: { accept: 'application/json' } })
       const dEstado = await rEstado.json().catch(() => ({}))
       if (rEstado.ok && !dEstado.error) {
-        estadoPorAdId = Object.fromEntries((dEstado.data || []).map((a) => [a.id, a.effective_status || '']))
+        idsActivos = new Set((dEstado.data || []).map((a) => a.ad_id))
       }
     } catch {
       // Sin estado disponible — se deja "desconocido" abajo, no se rompe nada.
@@ -168,14 +172,18 @@ export default async function handler(req, res) {
     const rows = (data.data || []).map((a) => {
       const spend = num(a.spend)
       const mensajes = mensajesDe(a.actions)
-      const estado = estadoPorAdId[a.ad_id] || 'desconocido'
+      // Solo sabemos "activo sí/no" (por el filtro de la segunda consulta) — el
+      // detalle de PAUSED/ARCHIVED/etc. exigiría el edge /ads, que no está
+      // autorizado. "historico" cubre cualquier no-activo sin distinguir cuál.
+      const activo = idsActivos.has(a.ad_id)
+      const estado = idsActivos.size === 0 ? 'desconocido' : activo ? 'ACTIVE' : 'historico'
       return {
         adId: a.ad_id || '',
         anuncio: a.ad_name || '(sin nombre)',
         campana: a.campaign_name || '',
         conjunto: a.adset_name || '',
         estado,
-        activo: estado === 'ACTIVE',
+        activo,
         gasto: spend,
         impresiones: num(a.impressions),
         clics: num(a.clicks),
