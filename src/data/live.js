@@ -515,11 +515,20 @@ export function panelModel(allCards) {
     // etiqueta ISO por año-semana aproximada
     const onejan = new Date(d.getFullYear(), 0, 1)
     const wk = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7)
-    const key = `s${wk}`
+    // La llave lleva año + semana con cero a la izquierda. Antes era `s${wk}`,
+    // que al ordenar como texto daba s10, s11, s2, s3 (alfabético) y además
+    // colisionaba la semana 3 de dos años distintos en la misma barra.
+    const key = `${d.getFullYear()}-${String(wk).padStart(2, '0')}`
     weekMap[key] = (weekMap[key] || 0) + 1
   }
-  const weekLabels = Object.keys(weekMap).sort()
-  const trend = { weekLabels, data: weekLabels.map((k) => weekMap[k]) }
+  const weekKeys = Object.keys(weekMap).sort()
+  // La etiqueta visible solo agrega el año cuando la serie cruza más de uno.
+  const variosAnios = new Set(weekKeys.map((k) => k.slice(0, 4))).size > 1
+  const weekLabels = weekKeys.map((k) => {
+    const [anio, wk] = k.split('-')
+    return variosAnios ? `s${Number(wk)}·${anio.slice(2)}` : `s${Number(wk)}`
+  })
+  const trend = { weekLabels, data: weekKeys.map((k) => weekMap[k]) }
 
   return { pruebas, funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons, clasificacionPerdida }, trend }
 }
