@@ -23,28 +23,40 @@ que mapearlos al Actualizar Lead, y agregar un paso que genere el `contexto`
 (resumen breve) tras cada respuesta del agente.
 
 
-Estrategia de mapeo de la base **Proceso Comercial - Círculo Tequila** (`pw5fbulfxbvr6ko`)
+Estrategia de mapeo de la base **Circulo Tequila Proceso Comercial** (`ppqrrdcbc6zxi9h`)
 hacia el dashboard, alineada a la **Arquitectura comercial validada con Kenia** (v.2026.06b)
 y a las 5 secciones solicitadas. Fuente de verdad: NocoDB (lo escribe el agente + el sistema).
 
-Host NocoDB: `n8n-nocodb.slmipf.easypanel.host` · lectura vía `/api/nocodb` (serverless, token server-side).
+Host NocoDB: `n8n-nocodb.pzqn6b.easypanel.host` · lectura vía `/api/nocodb` (serverless, token server-side).
+Se puede sobreescribir con `NOCODB_HOST` / `NOCODB_BASE` en Vercel.
+
+> **Estos son los valores reales, verificados contra `api/nocodb.js`.** Hasta la
+> auditoría del 2026-07-20 este documento apuntaba a otra instancia (`slmipf`),
+> otra base (`pw5fbulfxbvr6ko`) y otros table IDs — ninguno existía ya. Si vuelve
+> a haber discrepancia, gana `api/nocodb.js`: es lo que corre.
 
 ---
 
 ## Tablas
 
+Las que el dashboard realmente consulta (constante `TABLES` en `api/nocodb.js`):
+
 | Recurso | Tabla NocoDB | ID | Rol |
 |---------|--------------|-----|-----|
-| `leads` | Leads | `m2iuluccpx3i11o` | Fila = un lead avanzando por las 10 etapas |
-| `signals` | Signal_log | `mebd3yz1aj8e291` | Bitácora append-only (§13): el agente escribe, el scoring lee |
-| `catalogo` | catalogo | `mrbt25f6tfuafmv` | Precios por línea (§01.1) |
-| `plantilla` | Plantilla | `mf9unimceympa4b` | Plantillas de mensajes (M1–M5, SEG) |
-| `rubrica` | rúbrica | `mw8ifbh4qmln0gd` | Rúbrica de scoring (versión) |
-| `documentacion` | documentación | `m5jrvujitikscef` | Notas del modelo |
-| `descripcionUso` | Descripción de Uso | `mrdekwjfxu5e2y9` | Guía de uso |
+| `leads` | Leads | `m29hmkkqhrq8wev` | Fila = un lead avanzando por las 10 etapas |
+| `signals` | Mensajes | `mm1dc5yyzuspkiw` | Bitácora de mensajes por `lead_id` (línea de tiempo) |
+| `senales` | Señales | `mqbezsfl3302vl5` | Señales de scoring (§13) |
+| `notas` | Notas | *(se resuelve por nombre)* | Notas compartidas Libia/Kenia. Columnas: `lead_id, autor, texto, ts` |
 
-> Base secundaria **Circulo Tequila Data Negocio** (`ppfl1c7wnts3gja`): config de negocio
-> (líneas y precios, segmentos, reglas, alcance del agente, escalamiento, etapas del pipeline).
+`notas` no tiene ID fijo: `getNotasTableId()` la busca por nombre en la base y
+cachea el resultado. Se puede fijar con `NOCODB_NOTAS_TABLE`.
+
+> Las tablas de configuración (`catalogo`, `Plantilla`, `rúbrica`,
+> `documentación`, `Descripción de Uso`) y la base **Data Negocio** existen en
+> NocoDB pero **el dashboard no las lee hoy**: no están en `TABLES` y no hay
+> endpoint que las exponga. Antes este doc las listaba con IDs como si
+> estuvieran conectadas. Si se conectan, se agregan a `TABLES` y se documentan
+> aquí con el ID real.
 
 ## Campos de `Leads` → dashboard
 
@@ -66,6 +78,28 @@ Host NocoDB: `n8n-nocodb.slmipf.easypanel.host` · lectura vía `/api/nocodb` (s
 | `requalify_at` | fecha de reactivación | Cola de reactivación (Sección 2) |
 | `contexto` | resumen libre | Detalle del lead (drawer) |
 | `fecha` | fecha de entrada | Tendencias (Sección 5); antigüedad |
+| `handoff_at` | cuándo pasó al vendedor | **Velocidad del handoff** (Panel · handoff) |
+| `perdido_at` | cuándo se marcó perdido | Marca de pérdida; separa lead malo de handoff malo |
+| `motivo_perdida` | slug del motivo | Motivos de pérdida (Panel · handoff) |
+
+### Campos de pérdida y handoff (resultado #8)
+- `motivo_perdida` es **selección única** con estos slugs exactos:
+  `precio`, `timing`, `competencia`, `sin_respuesta_vendedor`, `dato_incompleto`, `otro`.
+  Vacío = **pendiente de clasificar**, y así se muestra. Ni el dashboard ni el
+  clasificador automático rellenan `otro` por defecto: sin evidencia, no hay motivo.
+- Marcar un lead como perdido **NO** sobreescribe `etapa` — se escribe
+  `perdido_at` y se conserva el paso real en el que iba. Es lo que permite
+  distinguir "lead malo" (se cayó en etapa 1–4) de "handoff malo" (etapa 5+).
+- `handoff_at` se lee desde `src/data/live.js` (`horasDesdeHandoff`). Los leads en
+  etapa ≥5 **sin** `handoff_at` se cuentan aparte como `sinDato`: es brecha de
+  instrumentación, no cero.
+
+> ⚠️ **Falta para cerrar el KPI de handoff:** NocoDB no guarda la fecha de cada
+> cambio de etapa ni la de cierre, solo `handoff_at` y `perdido_at`. Por eso hoy
+> se mide *"horas transcurridas desde el handoff"*, no *"handoff → primer
+> avance"*. Para el KPI completo, n8n debe escribir un `etapa_actualizada_at` (o
+> una bitácora de cambios de etapa) en `Leads`; el cálculo ya está listo en
+> `panelModel` para engancharse ahí.
 
 ### `etapa` → etapa del pipeline (1–10)
 `nuevo`=1 · `en_conversacion`=2 · `calificado`=3 · `interesado`=4 · `transferido`=5 ·
@@ -77,8 +111,9 @@ Se traduce cada estatus de Kenia a una acción sugerida (ver `ESTATUS_NEXT` en `
 "En espera para enviar costos", "Se enviaron costos", "Sin respuesta después de enviar costos",
 "Pendiente confirmar llamada", "Lead enviado", "Se envió link de tienda", "No está interesado".
 
-## Campos de `Signal_log` → dashboard
+## Campos de `Mensajes` (recurso `signals`) → dashboard
 `lead_id`, `ts`, `tipo` (toque/respuesta/señal), `plantilla_id` (M1–M5/SEG), `canal`, `valor/detalle`, `actor`.
+El lector tolera además el esquema alterno `texto` / `emisor` / `etiqueta`.
 → **Línea de tiempo real por lead** (drawer de Leads) + última interacción y días sin movimiento (Sección 2).
 
 ---
@@ -100,7 +135,12 @@ Se traduce cada estatus de Kenia a una acción sugerida (ver `ESTATUS_NEXT` en `
 > (precios por línea desde la base) y detalle de `contexto` en el drawer de Leads.
 
 ## Reglas de la arquitectura reflejadas
-- Solo filas con `lead_id = L-####` cuentan como lead (se filtran vacías y notas).
+- Cuentan como lead las filas con `lead_id = L-####` **o** `mc_<telefono>`
+  (sesiones del webhook/simulador). Se filtran vacías, encabezados y notas.
+- Los **leads de prueba** (teléfonos sintéticos `+521555…` y los 3 fijos de
+  pruebas) se excluyen de TODOS los KPIs — embudo, orígenes, handoff, tendencias.
+  Siguen visibles en el Pipeline con el chip 🧪 y se reportan aparte como
+  "N de prueba excluidos". Ver `sinPruebas()` en `src/data/live.js`.
 - `perdido` + `requalify_at` → cola de reactivación (no se pierde el lead).
 - Ciudad define vendedor (GDL/CDMX/Riviera Maya) al llegar a etapa 5 (§04.2, §07).
 - Valor = estimación (`botellas × $2,250`), nunca un precio confirmado (guardrail §10).
