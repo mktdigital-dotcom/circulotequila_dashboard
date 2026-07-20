@@ -312,10 +312,16 @@ function LeadDrawer({ card, onClose, onChange }) {
   )
 }
 
+// Columna donde se dibuja una tarjeta. Un lead perdido conserva su etapa real
+// (para saber en qué paso se cayó), así que no basta con mirar `stage`: si está
+// marcado como perdido, va a Reactivación aunque su etapa sea numérica.
+const colDe = (c) => (c.perdida ? 'reactivacion' : c.stage)
+
 function Column({ stage, board, match, overStage, setOverStage, onDrop, onDragStartCard, onDragEndCard, onClickCard }) {
   const accent = accentOf(stage.n)
-  const cards = board.filter((c) => c.stage === stage.n && match(c))
-  const colTotal = board.filter((c) => c.stage === stage.n).reduce((s, c) => s + (c.value || 0), 0)
+  const enCol = board.filter((c) => colDe(c) === stage.n)
+  const cards = enCol.filter(match)
+  const colTotal = enCol.reduce((s, c) => s + (c.value || 0), 0)
   return (
     <div
       className={'kcol' + (overStage === stage.n ? ' is-over' : '')}
@@ -327,7 +333,7 @@ function Column({ stage, board, match, overStage, setOverStage, onDrop, onDragSt
       <div className="kcol__head">
         <span className="kcol__num" style={{ background: accent }}>{stage.n === 'reactivacion' ? '↻' : stage.n}</span>
         <span className="kcol__label">{stage.label}</span>
-        <span className="kcount">{board.filter((c) => c.stage === stage.n).length}</span>
+        <span className="kcount">{enCol.length}</span>
       </div>
       <div className="kcol__total">{colTotal ? pesoCompact(colTotal) : '—'}</div>
       <div className="kcol__body">
@@ -374,6 +380,7 @@ export default function Leads({ board, setBoard, query = '' }) {
   const dragId = useRef(null)
   const draggedRef = useRef(false)
   const [overStage, setOverStage] = useState(null)
+  const [moveError, setMoveError] = useState('')
   const [selectedId, setSelectedId] = useState(null)
   const selected = board.find((c) => c.id === selectedId) || null
 
@@ -388,11 +395,40 @@ export default function Leads({ board, setBoard, query = '' }) {
     setOverStage(null)
     dragId.current = null
     if (!id) return
-    setBoard((prev) => prev.map((c) => (c.id === id ? { ...c, stage: stageN } : c)))
-    // Escribe la etapa en NocoDB para que el movimiento sea compartido y no se
-    // revierta en el siguiente polling. Solo si el lead ya existe en la base.
-    const c = board.find((x) => x.id === id)
-    if (c?.ncId != null) patchLead(c.ncId, { etapa: etapaDeStage(stageN) }).catch(() => {})
+    const prevCard = board.find((x) => x.id === id)
+    if (!prevCard) return
+
+    // Mover a Reactivación NO es cambiar de etapa: es marcar el lead como
+    // perdido. Antes se escribía `etapa: 'perdido'`, lo que borraba en qué paso
+    // real iba el lead (dolor #1 de Kenia) y además no guardaba ni `perdido_at`
+    // ni `motivo_perdida`. Ahora se preserva la etapa y solo se sella la fecha;
+    // el motivo queda pendiente de captura (vacío = "sin clasificar", honesto).
+    const aReactivacion = stageN === 'reactivacion'
+    const ahora = new Date().toISOString().slice(0, 16).replace('T', ' ')
+
+    const parche = aReactivacion
+      ? { perdida: true, perdidoAt: ahora }
+      : { stage: stageN, perdida: false, perdidoAt: '', motivoPerdida: '' }
+    setBoard((prev) => prev.map((c) => (c.id === id ? { ...c, ...parche } : c)))
+
+    // Escribe en NocoDB para que el movimiento sea compartido y no se revierta
+    // en el siguiente polling. Solo si el lead ya existe en la base.
+    if (prevCard.ncId == null) return
+    const fields = aReactivacion
+      ? { perdido_at: ahora }
+      : {
+          etapa: etapaDeStage(stageN),
+          // Sacarlo de Reactivación = revivirlo: se limpia la marca de pérdida,
+          // si no `perdida` seguiría en true para siempre.
+          ...(prevCard.perdida ? { perdido_at: '', motivo_perdida: '' } : {}),
+        }
+    patchLead(prevCard.ncId, fields).catch((e) => {
+      // Antes esto era `.catch(() => {})`: si NocoDB rechazaba, la tarjeta se
+      // quedaba movida en pantalla y el error desaparecía sin rastro.
+      console.error('No se pudo mover el lead en NocoDB', prevCard.id, e)
+      setBoard((prev) => prev.map((c) => (c.id === id ? prevCard : c)))
+      setMoveError(`No se pudo mover "${prevCard.name}": ${e.message}`)
+    })
   }
   const onClickCard = (id) => {
     if (draggedRef.current) { draggedRef.current = false; return }
@@ -419,6 +455,13 @@ export default function Leads({ board, setBoard, query = '' }) {
           <span className="pipeline-badge__sub">entregado {pesoCompact(entregado)}</span>
         </div>
       </div>
+
+      {moveError && (
+        <div className="callout" role="alert" style={{ marginBottom: 12, borderColor: '#e2795c' }}>
+          {moveError}{' '}
+          <button className="btn-export" onClick={() => setMoveError('')}>cerrar</button>
+        </div>
+      )}
 
       <div className="pipeline">
         <div className="pzones">
