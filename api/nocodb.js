@@ -88,6 +88,11 @@ const ETAPA_NUM = {
   anticipo: 7, 'anticipo recibido': 7, brief: 8, 'brief completado': 8,
   diseno: 9, 'diseno autorizado': 9, produccion: 10, 'produccion y entrega': 10, entrega: 10,
 }
+// Etapas que NO dicen en qué paso iba el lead cuando se perdió: son estados de
+// salida, no posiciones del pipeline. Un lead histórico marcado `perdido` pudo
+// haberse perdido en cualquier etapa — asumir pre-handoff lo clasificaría en
+// masa como "lead malo" y le echaría la culpa a marketing sin evidencia.
+const ETAPA_SIN_POSICION = new Set(['perdido', 'reactivacion'])
 const OBJECION_KEYWORDS = [
   { motivo: 'precio', patterns: ['caro', 'costoso', 'descuento', 'presupuesto'] },
   { motivo: 'competencia', patterns: ['otro tequila', 'mas barato', 'cuesta menos', 'otra marca'] },
@@ -107,6 +112,7 @@ async function clasificarObjeciones() {
   }
 
   const detalle = []
+  const omitidos = { sinEtapa: 0, sinEvidencia: 0 }
   for (const row of leadsRows) {
     const f = row.fields || row
     const leadId = (f.lead_id || '').toString().trim()
@@ -118,23 +124,32 @@ async function clasificarObjeciones() {
     const etapaN = normTxt(f.etapa)
     const stage = ETAPA_NUM[etapaN] ?? null
     const perdida = !!perdidoAt || estado === 'cerrado_sin_respuesta' || etapaN === 'perdido' || etapaN === 'reactivacion'
-    const esPreHandoff = stage != null ? stage < 5 : true // si no hay etapa mapeada, se asume aún no transferido
-    if (!perdida || !esPreHandoff) continue
+    if (!perdida) continue
+
+    // Sin etapa mapeable no sabemos si se perdió antes o después del handoff.
+    // Antes se asumía pre-handoff, lo que marcaba TODO lead histórico perdido
+    // como culpa de marketing. Si no se puede determinar, no se clasifica.
+    if (stage == null || ETAPA_SIN_POSICION.has(etapaN)) { omitidos.sinEtapa++; continue }
+    if (stage >= 5) continue // post-handoff: lo llena Kenia a mano
 
     const textos = (msgsByLead[leadId] || []).join(' \n ')
     let motivo = null
     for (const { motivo: m, patterns } of OBJECION_KEYWORDS) {
       if (patterns.some((p) => textos.includes(p))) { motivo = m; break }
     }
-    if (!motivo) motivo = 'otro' // sin palabra clave clara (silencio u otro motivo no mapeado)
+    // Sin palabra clave no hay evidencia de NADA. Antes se escribía 'otro', que
+    // inventaba un motivo y ensuciaba el reporte de pérdidas: queda vacío para
+    // que se vea como lo que es — pendiente de clasificar a mano.
+    if (!motivo) { omitidos.sinEvidencia++; continue }
 
-    const fields = { motivo_perdida: motivo }
-    if (!perdidoAt) fields.perdido_at = new Date().toISOString().slice(0, 16).replace('T', ' ')
-    const r = await ncWrite('PATCH', TABLES.leads, { Id: row.Id ?? row.id, ...fields })
+    // OJO: aquí NO se toca `perdido_at`. Esta función solo LEE leads que ya
+    // están perdidos, nunca los transiciona; sellar `new Date()` le ponía fecha
+    // de hoy a pérdidas viejas y destruía cualquier métrica de tiempo.
+    const r = await ncWrite('PATCH', TABLES.leads, { Id: row.Id ?? row.id, motivo_perdida: motivo })
     if (r.ok) detalle.push({ lead_id: leadId, motivo_perdida: motivo })
     else console.error('clasificar patch error', leadId, r.status)
   }
-  return detalle
+  return { detalle, omitidos }
 }
 
 async function fetchAll(tableId) {
@@ -180,8 +195,8 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && (req.query?.op || '') === 'clasificar') {
     if (!esLlamadaDeCron(req)) { res.status(401).json({ error: 'No autorizado.' }); return }
     try {
-      const detalle = await clasificarObjeciones()
-      res.status(200).json({ ok: true, origen: 'cron', clasificados: detalle.length, detalle })
+      const { detalle, omitidos } = await clasificarObjeciones()
+      res.status(200).json({ ok: true, origen: 'cron', clasificados: detalle.length, detalle, omitidos })
     } catch (e) {
       console.error('clasificar (cron) error', e)
       res.status(502).json({ error: 'No se pudo clasificar objeciones' })
@@ -226,8 +241,8 @@ export default async function handler(req, res) {
   // POST /api/nocodb?op=clasificar
   if (req.method === 'POST' && op === 'clasificar') {
     try {
-      const detalle = await clasificarObjeciones()
-      res.status(200).json({ ok: true, clasificados: detalle.length, detalle })
+      const { detalle, omitidos } = await clasificarObjeciones()
+      res.status(200).json({ ok: true, clasificados: detalle.length, detalle, omitidos })
     } catch (e) {
       console.error('clasificar error', e)
       res.status(502).json({ error: 'No se pudo clasificar objeciones' })
