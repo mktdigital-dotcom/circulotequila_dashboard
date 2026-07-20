@@ -195,10 +195,14 @@ export function HandoffCard({ live }) {
       </div>
       <div className="loss">
         <div className="loss__title">Motivos de pérdida{pm ? '' : ' · 90 días'}</div>
-        {(losses.length ? losses : lossStatic).slice(0, 4).map((r) => (
+        {/* Antes esto era `(losses.length ? losses : lossStatic)`: con datos
+            reales y cero pérdidas registradas, la tarjeta rotulada "datos
+            reales" mostraba los 5 motivos inventados del mock. Con datos
+            reales no hay fallback: o hay pérdidas, o se dice que no hay. */}
+        {losses.length > 0 && losses.slice(0, 4).map((r) => (
           <div className="loss__row" key={r.reason}><span>{r.reason}</span><span>{r.value}</span></div>
         ))}
-        {pm && losses.length === 0 && (
+        {losses.length === 0 && (
           <div className="loss__row"><span className="muted">Sin pérdidas registradas</span><span>0</span></div>
         )}
       </div>
