@@ -51,7 +51,7 @@ export function LiveKpis({ live }) {
           {live?.error
             ? `Sin conexión: ${live.error}`
             : ready
-              ? `${k.total} leads reales${rel ? ' · actualizado ' + rel : ''}`
+              ? `${k.total} leads reales${k.pruebas ? ` · ${k.pruebas} de prueba excluidos` : ''}${rel ? ' · actualizado ' + rel : ''}`
               : 'Conectando con la base de datos…'}
         </span>
       </div>

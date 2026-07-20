@@ -354,7 +354,16 @@ function attachNotas(cards, notaRows) {
 }
 
 // KPIs derivados de los leads reales (Panel · Resumen del embudo).
-export function leadsKpis(cards) {
+// Los leads de prueba (teléfonos sintéticos, simulador de Kenia/Libia) NO son
+// negocio: contarlos infla el embudo, el pipeline y el CPL. Antes solo se
+// pintaba un chip 🧪 y seguían sumando en todos los KPIs. Se excluyen del
+// cálculo y se reporta su conteo aparte para que no parezca que se perdieron.
+export const sinPruebas = (cards) => (cards || []).filter((c) => !c.esPrueba)
+export const contarPruebas = (cards) => (cards || []).filter((c) => c.esPrueba).length
+
+export function leadsKpis(allCards) {
+  const cards = sinPruebas(allCards)
+  const pruebas = contarPruebas(allCards)
   const total = cards.length
   const byTier = { A: 0, B: 0, C: 0, D: 0 }
   const byCiudad = {}
@@ -379,6 +388,7 @@ export function leadsKpis(cards) {
   const numStages = Object.entries(byStage).filter(([k]) => k !== 'reactivacion')
   return {
     total,
+    pruebas,
     byTier,
     byStage,
     byLinea,
@@ -423,7 +433,10 @@ const CANAL_LABEL = { whatsapp: 'Meta Ads · WhatsApp', web: 'Sitio web', 'sitio
 const TIER_VAL = { A: 4, B: 3, C: 2, D: 1 }
 
 // Modelo completo del Panel a partir de los leads reales (Secciones 1, 3, 4, 5).
-export function panelModel(cards) {
+export function panelModel(allCards) {
+  // Ver `sinPruebas`: los leads 🧪 no cuentan como negocio en ningún KPI.
+  const cards = sinPruebas(allCards)
+  const pruebas = contarPruebas(allCards)
   const numStage = (c) => (typeof c.stage === 'number' ? c.stage : 0)
   const total = cards.length
 
@@ -508,7 +521,7 @@ export function panelModel(cards) {
   const weekLabels = Object.keys(weekMap).sort()
   const trend = { weekLabels, data: weekLabels.map((k) => weekMap[k]) }
 
-  return { funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons, clasificacionPerdida }, trend }
+  return { pruebas, funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons, clasificacionPerdida }, trend }
 }
 
 const ENDPOINT = '/api/nocodb'
