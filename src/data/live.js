@@ -410,6 +410,14 @@ const MOTIVO_LABEL = {
   dato_incompleto: 'Dato incompleto',
   otro: 'Otro',
 }
+// `norm()` convierte `_` en espacio, así que buscar MOTIVO_LABEL[norm(slug)]
+// jamás matcheaba las llaves con guion bajo (sin_respuesta_vendedor,
+// dato_incompleto) y caían a "Sin motivo registrado". Este índice normaliza las
+// llaves del diccionario con la MISMA función, así aceptamos tanto el slug con
+// guion bajo como cualquier variante con espacios/acentos que llegue de NocoDB.
+const MOTIVO_LABEL_NORM = Object.fromEntries(
+  Object.entries(MOTIVO_LABEL).map(([k, v]) => [norm(k), v]),
+)
 const CANAL_TONE = { whatsapp: 'golddim', web: 'gold', 'sitio web': 'gold', referido: 'green', referidos: 'green', evento: 'teal', eventos: 'teal', mailing: 'orange' }
 const CANAL_LABEL = { whatsapp: 'Meta Ads · WhatsApp', web: 'Sitio web', 'sitio web': 'Sitio web' }
 const TIER_VAL = { A: 4, B: 3, C: 2, D: 1 }
@@ -472,7 +480,7 @@ export function panelModel(cards) {
   ]
   const lossMap = {}
   for (const c of cards.filter((c) => c.perdida)) {
-    const r = (c.motivoPerdida && MOTIVO_LABEL[norm(c.motivoPerdida)]) || LOSS_REASON[norm(c.estatusMkt)] || 'Sin motivo registrado'
+    const r = (c.motivoPerdida && MOTIVO_LABEL_NORM[norm(c.motivoPerdida)]) || LOSS_REASON[norm(c.estatusMkt)] || 'Sin motivo registrado'
     lossMap[r] = (lossMap[r] || 0) + 1
   }
   const lossReasons = Object.entries(lossMap).map(([reason, value]) => ({ reason, value })).sort((a, b) => b.value - a.value)
