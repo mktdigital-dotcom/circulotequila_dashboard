@@ -206,6 +206,37 @@ export function HandoffCard({ live }) {
           <div className="loss__row"><span className="muted">Sin pérdidas registradas</span><span>0</span></div>
         )}
       </div>
+      {pm && (
+        <div className="loss">
+          <div className="loss__title">Velocidad del handoff</div>
+          {ho.velocidadHandoff.conDato === 0 ? (
+            <div className="loss__row">
+              <span className="muted">
+                NocoDB no está devolviendo <code>handoff_at</code>
+                {ho.velocidadHandoff.sinDato > 0 && ` — ${ho.velocidadHandoff.sinDato} leads con vendedor sin fecha de entrega`}
+              </span>
+              <span>—</span>
+            </div>
+          ) : (
+            <>
+              <div className="loss__row">
+                <span>Mediana en manos del vendedor</span>
+                <span>{ho.velocidadHandoff.medianaHoras != null ? `${ho.velocidadHandoff.medianaHoras} h` : '—'}</span>
+              </div>
+              <div className="loss__row">
+                <span>Abiertos con +48 h sin avanzar</span>
+                <span>{ho.velocidadHandoff.estancados48h}</span>
+              </div>
+              {ho.velocidadHandoff.sinDato > 0 && (
+                <div className="loss__row">
+                  <span className="muted">Con vendedor pero sin <code>handoff_at</code></span>
+                  <span>{ho.velocidadHandoff.sinDato}</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
       {pm && (ho.clasificacionPerdida.leadMalo + ho.clasificacionPerdida.handoffMalo + ho.clasificacionPerdida.sinClasificar > 0) && (
         <div className="loss">
           <div className="loss__title">Dónde se perdió (resultado #8)</div>

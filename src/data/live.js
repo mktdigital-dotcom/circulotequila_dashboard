@@ -129,6 +129,13 @@ function daysSince(dateStr) {
   return Math.max(0, Math.round((Date.now() - d.getTime()) / 86400000))
 }
 
+function hoursSince(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr.replace(' ', 'T'))
+  if (isNaN(d)) return null
+  return Math.max(0, Math.round(((Date.now() - d.getTime()) / 3600000) * 10) / 10)
+}
+
 const relLabel = (dateStr) => {
   const d = daysSince(dateStr)
   if (d == null) return '—'
@@ -172,6 +179,15 @@ export function mapLeadRowToCard(row) {
   // asesor" (etapa 5+, ya lo atendieron — moverlo en el pipeline a Ventas es
   // justo lo que dispara este cambio).
   const conAsesor = typeof stage === 'number' && stage >= 5
+
+  // handoff_at: el momento exacto en que el lead pasó al vendedor. Hasta ahora
+  // el dashboard NUNCA leía esta columna — el handoff se infería de `stage >= 5`,
+  // que dice QUE pasó pero no CUÁNDO, así que no se podía medir cuánto tarda
+  // ventas en mover un lead. Si la columna viene vacía se marca como inferido y
+  // el tiempo queda en null (no se inventa).
+  const handoffAt = (row.handoff_at || '').toString().trim()
+  const handoffInferido = !handoffAt && conAsesor
+  const horasDesdeHandoff = hoursSince(handoffAt)
 
   const tags = []
   if (conAsesor) tags.push('con asesor')
@@ -217,6 +233,9 @@ export function mapLeadRowToCard(row) {
     perdidoAt,
     motivoPerdida,
     perdidaEn,
+    handoffAt,
+    handoffInferido,
+    horasDesdeHandoff,
     owner,
     // Derivados para Seguimientos / handoff. La tabla no tiene columna `owner`:
     // en etapas 1–4 el responsable ES el agente (§06); de 5+ el vendedor por ciudad.
@@ -506,6 +525,37 @@ export function panelModel(allCards) {
   const sinClasificar = cards.filter((c) => c.perdidaEn === 'sin_clasificar').length
   const clasificacionPerdida = { leadMalo, handoffMalo, sinClasificar }
 
+  // ── Velocidad del handoff — el KPI que faltaba ──
+  // Cuánto lleva un lead en manos del vendedor desde `handoff_at`. Es la única
+  // forma de ver si ventas atiende o se sienta encima del lead.
+  //
+  // LIMITACIÓN CONOCIDA (no se disimula): NocoDB hoy no guarda la fecha de cada
+  // avance de etapa ni la de cierre, solo `handoff_at` y `perdido_at`. Por eso
+  // esto mide "horas transcurridas desde el handoff" en leads que siguen
+  // abiertos — NO "handoff → primer avance". Para eso hace falta que n8n escriba
+  // un `etapa_actualizada_at` (o una bitácora de cambios de etapa) en la tabla
+  // Leads; en cuanto exista, se calcula aquí mismo. Ver docs/DATA_MAP.md.
+  const conHandoff = cards.filter((c) => c.horasDesdeHandoff != null)
+  const abiertosConHandoff = conHandoff.filter((c) => !c.perdida && numStage(c) < 10)
+  const horas = abiertosConHandoff.map((c) => c.horasDesdeHandoff).sort((a, b) => a - b)
+  const mediana = horas.length
+    ? horas.length % 2
+      ? horas[(horas.length - 1) / 2]
+      : Math.round(((horas[horas.length / 2 - 1] + horas[horas.length / 2]) / 2) * 10) / 10
+    : null
+  const velocidadHandoff = {
+    conDato: conHandoff.length,
+    // Leads que el dashboard cree entregados a ventas (stage >= 5) pero sin
+    // `handoff_at`: la brecha real de instrumentación, visible en pantalla.
+    sinDato: cards.filter((c) => c.handoffInferido).length,
+    abiertos: abiertosConHandoff.length,
+    medianaHoras: mediana,
+    estancados48h: abiertosConHandoff.filter((c) => c.horasDesdeHandoff >= 48).length,
+    // Falta el dato de "primer avance": se completa cuando exista la marca de
+    // tiempo del cambio de etapa (ver comentario de arriba).
+    primerAvanceDisponible: false,
+  }
+
   // ── Sección 5 · Tendencias (leads por semana según fecha) ──
   const weekMap = {}
   for (const c of cards) {
@@ -530,7 +580,7 @@ export function panelModel(allCards) {
   })
   const trend = { weekLabels, data: weekKeys.map((k) => weekMap[k]) }
 
-  return { pruebas, funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons, clasificacionPerdida }, trend }
+  return { pruebas, funnel, channels, paises, handoff: { total: handoffTotal, segments, lossReasons, clasificacionPerdida, velocidadHandoff }, trend }
 }
 
 const ENDPOINT = '/api/nocodb'
